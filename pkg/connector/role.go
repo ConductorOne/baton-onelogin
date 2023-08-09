@@ -95,15 +95,13 @@ func (r *roleResourceType) Entitlements(ctx context.Context, resource *v2.Resour
 	var rv []*v2.Entitlement
 
 	memberAssignmentOptions := []ent.EntitlementOption{
-		// TODO: later add applications
-		ent.WithGrantableTo(resourceTypeUser),
+		ent.WithGrantableTo(resourceTypeUser, resourceTypeApp),
 		ent.WithDisplayName(fmt.Sprintf("%s Role %s", resource.DisplayName, roleMembership)),
 		ent.WithDescription(fmt.Sprintf("Access to %s role in OneLogin", resource.DisplayName)),
 	}
 
 	adminAssignmentOptions := []ent.EntitlementOption{
-		// TODO: later add applications
-		ent.WithGrantableTo(resourceTypeUser),
+		ent.WithGrantableTo(resourceTypeUser, resourceTypeApp),
 		ent.WithDisplayName(fmt.Sprintf("%s Role %s", resource.DisplayName, roleAdmin)),
 		ent.WithDescription(fmt.Sprintf("Admin access to %s role in OneLogin", resource.DisplayName)),
 	}
@@ -144,7 +142,10 @@ func (r *roleResourceType) Grants(ctx context.Context, resource *v2.Resource, pt
 		bag.Push(pagination.PageState{
 			ResourceTypeID: adminResourceId,
 		})
-		// TODO: get role applications
+		// get role apps
+		bag.Push(pagination.PageState{
+			ResourceTypeID: resourceTypeApp.Id,
+		})
 
 	case resourceTypeUser.Id:
 		roleUsers, nextCursor, err := r.client.GetRoleUsers(
@@ -221,6 +222,45 @@ func (r *roleResourceType) Grants(ctx context.Context, resource *v2.Resource, pt
 		}
 
 		return rv, nextPage, nil, nil
+
+	case resourceTypeApp.Id:
+		roleApps, nextCursor, err := r.client.GetRoleApps(
+			ctx,
+			resource.Id.Resource,
+			onelogin.PaginationVars{
+				Limit:  ResourcesPageSize,
+				Cursor: cursor,
+			},
+		)
+		if err != nil {
+			return nil, "", nil, fmt.Errorf("onelogin-connector: failed to list apps under role %s: %w", resource.Id.Resource, err)
+		}
+
+		// for each app, create a grant
+		for _, app := range roleApps {
+			appCopy := app
+			ur, err := appResource(ctx, &appCopy)
+			if err != nil {
+				return nil, "", nil, err
+			}
+
+			rv = append(
+				rv,
+				grant.NewGrant(
+					resource,
+					roleAdmin,
+					ur.Id,
+				),
+			)
+		}
+
+		nextPage, err := bag.NextToken(nextCursor)
+		if err != nil {
+			return nil, "", nil, err
+		}
+
+		return rv, nextPage, nil, nil
+
 	default:
 		return nil, "", nil, fmt.Errorf("unknown resource type: %s", bag.ResourceTypeID())
 	}

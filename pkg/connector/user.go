@@ -132,6 +132,7 @@ func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagin
 			Limit:  ResourcesPageSize,
 			Cursor: cursor,
 		},
+		"",
 	)
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to list users: %w", err)

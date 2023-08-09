@@ -27,6 +27,20 @@ var (
 			v2.ResourceType_TRAIT_ROLE,
 		},
 	}
+	resourceTypeApp = &v2.ResourceType{
+		Id:          "app",
+		DisplayName: "App",
+		Traits: []v2.ResourceType_Trait{
+			v2.ResourceType_TRAIT_APP,
+		},
+	}
+	resourceTypeGroup = &v2.ResourceType{
+		Id:          "group",
+		DisplayName: "Group",
+		Traits: []v2.ResourceType_Trait{
+			v2.ResourceType_TRAIT_GROUP,
+		},
+	}
 )
 
 type OneLogin struct {
@@ -37,6 +51,8 @@ func (o *OneLogin) ResourceSyncers(ctx context.Context) []connectorbuilder.Resou
 	return []connectorbuilder.ResourceSyncer{
 		userBuilder(o.client),
 		roleBuilder(o.client),
+		appBuilder(o.client),
+		groupBuilder(o.client),
 	}
 }
 
