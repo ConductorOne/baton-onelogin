@@ -11,6 +11,8 @@ import (
 	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"go.uber.org/zap"
 )
 
 const (
@@ -271,6 +273,49 @@ func (r *roleResourceType) Grants(ctx context.Context, resource *v2.Resource, pt
 	}
 
 	return rv, nextPage, nil, nil
+}
+
+func (r *roleResourceType) Grant(ctx context.Context, principal *v2.Resource, entitlement *v2.Entitlement) (annotations.Annotations, error) {
+	l := ctxzap.Extract(ctx)
+
+	if principal.Id.ResourceType != resourceTypeUser.Id {
+		l.Warn(
+			"onelogin-connector: only users can be granted role membership",
+			zap.String("principal_type", principal.Id.ResourceType),
+			zap.String("principal_id", principal.Id.Resource),
+		)
+		return nil, fmt.Errorf("onelogin-connector: only users can be granted role membership")
+	}
+
+	err := r.client.GrantRole(ctx, entitlement.Resource.Id.Resource, principal.Id.Resource, entitlement.Slug)
+	if err != nil {
+		return nil, fmt.Errorf("onelogin-connector: failed to grant %s role: %w", entitlement.Slug, err)
+	}
+
+	return nil, nil
+}
+
+func (r *roleResourceType) Revoke(ctx context.Context, grant *v2.Grant) (annotations.Annotations, error) {
+	l := ctxzap.Extract(ctx)
+
+	entitlement := grant.Entitlement
+	principal := grant.Principal
+
+	if principal.Id.ResourceType != resourceTypeUser.Id {
+		l.Warn(
+			"baton-onelogin: only users can have role membership revoked",
+			zap.String("principal_type", principal.Id.ResourceType),
+			zap.String("principal_id", principal.Id.Resource),
+		)
+		return nil, fmt.Errorf("baton-onelogin: only users can have role membership revoked")
+	}
+
+	err := r.client.RevokeRole(ctx, entitlement.Resource.Id.Resource, principal.Id.Resource, entitlement.Slug)
+	if err != nil {
+		return nil, fmt.Errorf("baton-onelogin: failed to revoke %s role: %w", entitlement.Slug, err)
+	}
+
+	return nil, nil
 }
 
 func roleBuilder(client *onelogin.Client) *roleResourceType {

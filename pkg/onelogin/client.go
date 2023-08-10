@@ -56,7 +56,9 @@ func (c *Client) GetUsers(ctx context.Context, paginationVars PaginationVars, gr
 	nextPage, err := c.doRequest(
 		ctx,
 		fmt.Sprintf(UsersBaseURL, c.subdomain),
+		http.MethodGet,
 		&usersResponse,
+		nil,
 		[]QueryParam{
 			&paginationVars,
 			prepareUserFilters(),
@@ -77,7 +79,9 @@ func (c *Client) GetApps(ctx context.Context, paginationVars PaginationVars) ([]
 	nextPage, err := c.doRequest(
 		ctx,
 		fmt.Sprintf(AppsBaseURL, c.subdomain),
+		http.MethodGet,
 		&appsResponse,
+		nil,
 		[]QueryParam{
 			&paginationVars,
 		}...,
@@ -96,7 +100,9 @@ func (c *Client) GetAppUsers(ctx context.Context, appId string, paginationVars P
 	nextPage, err := c.doRequest(
 		ctx,
 		fmt.Sprintf(AppUsersBaseURL, c.subdomain, appId),
+		http.MethodGet,
 		&appUsersResponse,
+		nil,
 		[]QueryParam{
 			&paginationVars,
 		}...,
@@ -118,7 +124,9 @@ func (c *Client) GetGroups(ctx context.Context, paginationVars PaginationVars) (
 	_, err := c.doRequest(
 		ctx,
 		fmt.Sprintf(GroupsBaseURL, c.subdomain),
+		http.MethodGet,
 		&groupsResponse,
+		nil,
 		[]QueryParam{
 			&paginationVars,
 		}...,
@@ -140,7 +148,9 @@ func (c *Client) GetRoles(ctx context.Context, paginationVars PaginationVars) ([
 	nextPage, err := c.doRequest(
 		ctx,
 		fmt.Sprintf(RolesBaseURL, c.subdomain),
+		http.MethodGet,
 		&rolesResponse,
+		nil,
 		[]QueryParam{
 			&paginationVars,
 		}...,
@@ -159,7 +169,9 @@ func (c *Client) GetRoleUsers(ctx context.Context, roleId string, paginationVars
 	nextPage, err := c.doRequest(
 		ctx,
 		fmt.Sprintf(RoleUsersBaseURL, c.subdomain, roleId),
+		http.MethodGet,
 		&roleUsersResponse,
+		nil,
 		[]QueryParam{
 			&paginationVars,
 		}...,
@@ -178,7 +190,9 @@ func (c *Client) GetRoleAdmins(ctx context.Context, roleId string, paginationVar
 	nextPage, err := c.doRequest(
 		ctx,
 		fmt.Sprintf(RoleAdminsBaseURL, c.subdomain, roleId),
+		http.MethodGet,
 		&roleAdminsResponse,
+		nil,
 		[]QueryParam{
 			&paginationVars,
 		}...,
@@ -197,7 +211,9 @@ func (c *Client) GetRoleApps(ctx context.Context, roleId string, paginationVars 
 	nextPage, err := c.doRequest(
 		ctx,
 		fmt.Sprintf(RoleAppsBaseURL, c.subdomain, roleId),
+		http.MethodGet,
 		&roleAppsResponse,
+		nil,
 		[]QueryParam{
 			&paginationVars,
 		}...,
@@ -208,6 +224,61 @@ func (c *Client) GetRoleApps(ctx context.Context, roleId string, paginationVars 
 	}
 
 	return roleAppsResponse, nextPage, nil
+}
+
+func (c *Client) GrantRole(ctx context.Context, roleId, userId, entitlement string) error {
+	var assignRoleResponse []BaseResource
+	var roleUrl string
+
+	if entitlement == "admin" {
+		roleUrl = fmt.Sprintf(RoleAdminsBaseURL, c.subdomain, roleId)
+	} else {
+		roleUrl = fmt.Sprintf(RoleUsersBaseURL, c.subdomain, roleId)
+	}
+
+	payload, e := json.Marshal([]string{userId})
+	if e != nil {
+		return e
+	}
+
+	_, err := c.doRequest(
+		ctx,
+		roleUrl,
+		http.MethodPost,
+		&assignRoleResponse,
+		payload,
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Client) RevokeRole(ctx context.Context, roleId, userId, entitlement string) error {
+	var roleUrl string
+	if entitlement == "admin" {
+		roleUrl = fmt.Sprintf(RoleAdminsBaseURL, c.subdomain, roleId)
+	} else {
+		roleUrl = fmt.Sprintf(RoleUsersBaseURL, c.subdomain, roleId)
+	}
+
+	payload, e := json.Marshal([]string{userId})
+	if e != nil {
+		return e
+	}
+	_, err := c.doRequest(
+		ctx,
+		roleUrl,
+		http.MethodDelete,
+		nil,
+		payload,
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func generateToken(ctx context.Context, httpClient *http.Client, clientId, clientSecret, subdomain string) (string, error) {
@@ -259,10 +330,12 @@ func generateToken(ctx context.Context, httpClient *http.Client, clientId, clien
 func (c *Client) doRequest(
 	ctx context.Context,
 	urlAddress string,
+	method string,
 	resourceResponse interface{},
+	payload []byte,
 	paramOptions ...QueryParam,
 ) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlAddress, nil)
+	req, err := http.NewRequestWithContext(ctx, method, urlAddress, bytes.NewReader(payload))
 	if err != nil {
 		return "", err
 	}
@@ -285,11 +358,20 @@ func (c *Client) doRequest(
 
 	defer rawResponse.Body.Close()
 
+	body, err := io.ReadAll(rawResponse.Body)
+	if err != nil {
+		return "", err
+	}
+
+	if len(body) == 0 && rawResponse.StatusCode >= 200 && rawResponse.StatusCode < 300 {
+		return "", nil
+	}
+
 	if rawResponse.StatusCode >= 300 {
 		return "", status.Error(codes.Code(rawResponse.StatusCode), "Request failed")
 	}
 
-	if err := json.NewDecoder(rawResponse.Body).Decode(&resourceResponse); err != nil {
+	if err := json.Unmarshal(body, &resourceResponse); err != nil {
 		return "", err
 	}
 
