@@ -2,6 +2,7 @@ package connector
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/conductorone/baton-onelogin/pkg/onelogin"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
@@ -65,6 +66,11 @@ func (o *OneLogin) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) 
 
 // Validates that the user has read access to all relevant tables (more information in the readme).
 func (o *OneLogin) Validate(ctx context.Context) (annotations.Annotations, error) {
+	_, _, err := o.client.GetRoles(ctx, onelogin.PaginationVars{Limit: 1})
+	if err != nil {
+		return nil, fmt.Errorf("onelogin-connector: failed to authenticate: %w", err)
+	}
+
 	return nil, nil
 }
 
