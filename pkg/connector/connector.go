@@ -64,11 +64,11 @@ func (o *OneLogin) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) 
 	}, nil
 }
 
-// Validates that the user has read access to all relevant tables (more information in the readme).
+// Validates that credentials have required scope for the connector.
 func (o *OneLogin) Validate(ctx context.Context) (annotations.Annotations, error) {
-	_, _, err := o.client.GetRoles(ctx, onelogin.PaginationVars{Limit: 1})
+	_, err := o.client.ValidateScope(ctx, onelogin.PaginationVars{Limit: 1})
 	if err != nil {
-		return nil, fmt.Errorf("onelogin-connector: failed to authenticate: %w", err)
+		return nil, fmt.Errorf("onelogin-connector: unauthorized: %w", err)
 	}
 
 	return nil, nil

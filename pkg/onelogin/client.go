@@ -29,6 +29,7 @@ const (
 	AppsBaseURL       = APIBaseURL + "apps"
 	AppUsersBaseURL   = APIBaseURL + "apps/%s/users"
 	GroupsBaseURL     = APIBaseV1URL + "groups"
+	ConnectorsBaseURL = APIBaseURL + "connectors"
 )
 
 type Client struct {
@@ -279,6 +280,27 @@ func (c *Client) RevokeRole(ctx context.Context, roleId, userId, entitlement str
 	}
 
 	return nil
+}
+
+// ValidateScope checks if user has 'Manage all' scope needed to read/write all resources.
+func (c *Client) ValidateScope(ctx context.Context, paginationVars PaginationVars) (string, error) {
+	var response []BaseResource
+	nextPage, err := c.doRequest(
+		ctx,
+		fmt.Sprintf(ConnectorsBaseURL, c.subdomain),
+		http.MethodGet,
+		&response,
+		nil,
+		[]QueryParam{
+			&paginationVars,
+		}...,
+	)
+
+	if err != nil {
+		return "", err
+	}
+
+	return nextPage, nil
 }
 
 func generateToken(ctx context.Context, httpClient *http.Client, clientId, clientSecret, subdomain string) (string, error) {
