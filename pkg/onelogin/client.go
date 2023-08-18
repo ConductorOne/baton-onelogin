@@ -380,21 +380,14 @@ func (c *Client) doRequest(
 
 	defer rawResponse.Body.Close()
 
-	body, err := io.ReadAll(rawResponse.Body)
-	if err != nil {
-		return "", err
-	}
-
-	if len(body) == 0 && rawResponse.StatusCode >= 200 && rawResponse.StatusCode < 300 {
-		return "", nil
-	}
-
 	if rawResponse.StatusCode >= 300 {
 		return "", status.Error(codes.Code(rawResponse.StatusCode), "Request failed")
 	}
 
-	if err := json.Unmarshal(body, &resourceResponse); err != nil {
-		return "", err
+	if method != http.MethodDelete {
+		if err := json.NewDecoder(rawResponse.Body).Decode(&resourceResponse); err != nil {
+			return "", err
+		}
 	}
 
 	// extract header after-cursor for pagination
