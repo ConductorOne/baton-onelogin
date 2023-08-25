@@ -1,7 +1,12 @@
 GOOS = $(shell go env GOOS)
 GOARCH = $(shell go env GOARCH)
 BUILD_DIR = dist/${GOOS}_${GOARCH}
-OUTPUT_PATH = ${BUILD_DIR}/baton-onelogin
+
+ifeq ($(GOOS),windows)
+OUTPUT_PATH = ${BUILD_DIR}/baton-splunk.exe
+else
+OUTPUT_PATH = ${BUILD_DIR}/baton-splunk
+endif
 
 .PHONY: build
 build:
