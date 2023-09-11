@@ -51,7 +51,7 @@ func minimalUserResource(ctx context.Context, user *onelogin.UserUnderRole) (*v2
 	userTraitOptions := []rs.UserTraitOption{
 		rs.WithEmail(user.Email, true),
 		rs.WithUserProfile(profile),
-		rs.WithStatus(v2.UserTrait_Status_STATUS_UNSPECIFIED),
+		rs.WithStatus(v2.UserTrait_Status_STATUS_ENABLED),
 	}
 
 	resource, err := rs.NewUserResource(
