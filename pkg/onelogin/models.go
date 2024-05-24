@@ -35,7 +35,7 @@ type Credentials struct {
 type App struct {
 	BaseResource
 	Name    string `json:"name"`
-	RoleIDS []int  `json:"role_ids"`
+	RoleIDs []int  `json:"role_ids"`
 }
 
 type Group struct {
