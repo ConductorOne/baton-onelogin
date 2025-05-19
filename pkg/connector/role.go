@@ -27,12 +27,12 @@ type roleResourceType struct {
 	client       *onelogin.Client
 }
 
-func (r *roleResourceType) ResourceType(_ context.Context) *v2.ResourceType {
+func (r *roleResourceType) ResourceType(ctx context.Context) *v2.ResourceType {
 	return r.resourceType
 }
 
 // Create a new connector resource for an OneLogin Role.
-func roleResource(ctx context.Context, role *onelogin.Role) (*v2.Resource, error) {
+func roleResource(role *onelogin.Role) (*v2.Resource, error) {
 	profile := map[string]interface{}{
 		"role_name": role.Name,
 		"role_id":   role.Id,
@@ -81,7 +81,7 @@ func (r *roleResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagin
 	var rv []*v2.Resource
 	for _, role := range roles {
 		roleCopy := role
-		rr, err := roleResource(ctx, &roleCopy)
+		rr, err := roleResource(&roleCopy)
 
 		if err != nil {
 			return nil, "", nil, err
@@ -165,7 +165,7 @@ func (r *roleResourceType) Grants(ctx context.Context, resource *v2.Resource, pt
 		// for each user, create a grant
 		for _, user := range roleUsers {
 			userCopy := user
-			ur, err := minimalUserResource(ctx, &userCopy)
+			ur, err := minimalUserResource(&userCopy)
 			if err != nil {
 				return nil, "", nil, err
 			}
@@ -203,7 +203,7 @@ func (r *roleResourceType) Grants(ctx context.Context, resource *v2.Resource, pt
 		// for each user, create a grant
 		for _, user := range roleAdmins {
 			userCopy := user
-			ur, err := minimalUserResource(ctx, &userCopy)
+			ur, err := minimalUserResource(&userCopy)
 			if err != nil {
 				return nil, "", nil, err
 			}
@@ -241,7 +241,7 @@ func (r *roleResourceType) Grants(ctx context.Context, resource *v2.Resource, pt
 		// for each app, create a grant
 		for _, app := range roleApps {
 			appCopy := app
-			ur, err := appResource(ctx, &appCopy)
+			ur, err := appResource(&appCopy)
 			if err != nil {
 				return nil, "", nil, err
 			}

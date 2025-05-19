@@ -18,12 +18,12 @@ type groupResourceType struct {
 	client       *onelogin.Client
 }
 
-func (g *groupResourceType) ResourceType(_ context.Context) *v2.ResourceType {
+func (g *groupResourceType) ResourceType(ctx context.Context) *v2.ResourceType {
 	return g.resourceType
 }
 
 // Create a new connector resource for an OneLogin Group.
-func groupResource(ctx context.Context, group *onelogin.Group) (*v2.Resource, error) {
+func groupResource(group *onelogin.Group) (*v2.Resource, error) {
 	profile := map[string]interface{}{
 		"group_id":   group.Id,
 		"group_name": group.Name,
@@ -72,7 +72,7 @@ func (g *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagi
 	var rv []*v2.Resource
 	for _, group := range groups {
 		groupCopy := group
-		ur, err := groupResource(ctx, &groupCopy)
+		ur, err := groupResource(&groupCopy)
 
 		if err != nil {
 			return nil, "", nil, err
@@ -126,7 +126,7 @@ func (g *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, t
 
 	for _, user := range users {
 		userCopy := user
-		ur, err := userResource(ctx, &userCopy)
+		ur, err := userResource(&userCopy)
 		if err != nil {
 			return nil, "", nil, err
 		}

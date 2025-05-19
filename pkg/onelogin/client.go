@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -22,6 +23,7 @@ const (
 	APIBaseV1URL      = BaseURL + "api/1/"
 	APIBaseURL        = BaseURL + "api/2/"
 	UsersBaseURL      = APIBaseURL + "users"
+	UserBaseUrl       = UsersBaseURL + "/%s"
 	RolesBaseURL      = APIBaseURL + "roles"
 	RoleUsersBaseURL  = APIBaseURL + "roles/%s/users"
 	RoleAdminsBaseURL = APIBaseURL + "roles/%s/admins"
@@ -72,6 +74,24 @@ func (c *Client) GetUsers(ctx context.Context, paginationVars PaginationVars, gr
 	}
 
 	return usersResponse, nextPage, nil
+}
+
+func (c *Client) GetUserByID(ctx context.Context, userID int) (*User, error) {
+	var userResponse User
+
+	_, err := c.doRequest(
+		ctx,
+		fmt.Sprintf(UserBaseUrl, c.subdomain, strconv.Itoa(userID)),
+		http.MethodGet,
+		&userResponse,
+		nil,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &userResponse, nil
 }
 
 func (c *Client) GetApps(ctx context.Context, paginationVars PaginationVars) ([]App, string, error) {
@@ -339,7 +359,7 @@ func generateToken(ctx context.Context, httpClient *http.Client, clientId, clien
 	defer rawResponse.Body.Close()
 
 	if rawResponse.StatusCode >= 300 {
-		return "", status.Error(codes.Code(rawResponse.StatusCode), "Request failed")
+		return "", status.Error(codes.Code(rawResponse.StatusCode), "Request failed") //nolint:gosec // safe conversion: HTTP status code is always in range 0-599
 	}
 
 	if err := json.NewDecoder(rawResponse.Body).Decode(&credentialsResponse); err != nil {
@@ -381,7 +401,7 @@ func (c *Client) doRequest(
 	defer rawResponse.Body.Close()
 
 	if rawResponse.StatusCode >= 300 {
-		return "", status.Error(codes.Code(rawResponse.StatusCode), "Request failed")
+		return "", status.Error(codes.Code(rawResponse.StatusCode), "Request failed") //nolint:gosec // safe conversion: HTTP status code is always in range 0-599
 	}
 
 	if method != http.MethodDelete {

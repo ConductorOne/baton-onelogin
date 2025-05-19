@@ -18,12 +18,12 @@ type appResourceType struct {
 	client       *onelogin.Client
 }
 
-func (a *appResourceType) ResourceType(_ context.Context) *v2.ResourceType {
+func (a *appResourceType) ResourceType(ctx context.Context) *v2.ResourceType {
 	return a.resourceType
 }
 
 // Create a new connector resource for an OneLogin App.
-func appResource(ctx context.Context, app *onelogin.App) (*v2.Resource, error) {
+func appResource(app *onelogin.App) (*v2.Resource, error) {
 	profile := map[string]interface{}{
 		"app_id":   app.Id,
 		"app_name": app.Name,
@@ -72,7 +72,7 @@ func (a *appResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagina
 	var rv []*v2.Resource
 	for _, app := range apps {
 		appCopy := app
-		ur, err := appResource(ctx, &appCopy)
+		ur, err := appResource(&appCopy)
 
 		if err != nil {
 			return nil, "", nil, err
@@ -126,7 +126,7 @@ func (a *appResourceType) Grants(ctx context.Context, resource *v2.Resource, tok
 
 	for _, app := range appUsers {
 		appCopy := app
-		ur, err := userResource(ctx, &appCopy)
+		ur, err := userResource(&appCopy)
 		if err != nil {
 			return nil, "", nil, err
 		}

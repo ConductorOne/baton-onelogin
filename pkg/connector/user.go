@@ -4,138 +4,201 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/conductorone/baton-onelogin/pkg/onelogin"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"go.uber.org/zap"
 )
 
 type userResourceType struct {
-	resourceType *v2.ResourceType
-	client       *onelogin.Client
+	resourceType   *v2.ResourceType
+	client         *onelogin.Client
+	users          map[int]string
+	usersMutex     sync.Mutex
+	usersTimestamp time.Time
 }
 
-func (u *userResourceType) ResourceType(_ context.Context) *v2.ResourceType {
+const usersCacheTTL = 5 * time.Minute
+
+func (u *userResourceType) ResourceType(ctx context.Context) *v2.ResourceType {
 	return u.resourceType
 }
 
-func minimalUserResource(ctx context.Context, user *onelogin.UserUnderRole) (*v2.Resource, error) {
-	var displayName, firstName, lastName string
-
-	// split the name into first and last name
-	if user.Name != "" {
-		nameParts := strings.Split(user.Name, " ")
-		firstName = nameParts[0]
-		lastName = strings.Join(nameParts[1:], " ")
-	}
-
-	if user.Username == "" {
-		if firstName != "" || lastName != "" {
-			displayName = fmt.Sprintf("%s %s", firstName, lastName)
-		} else {
-			displayName = user.Email
-		}
-	} else {
-		displayName = user.Username
-	}
-
+// buildUserProfile constructs a display name and profile from user details.
+func buildUserProfile(displayName, email, firstName, lastName, managerName string, id int) (map[string]interface{}, []rs.UserTraitOption) {
 	profile := map[string]interface{}{
 		"login":      displayName,
-		"user_id":    fmt.Sprintf("%d", user.Id),
+		"user_id":    fmt.Sprintf("%d", id),
 		"first_name": firstName,
 		"last_name":  lastName,
 	}
+	if managerName != "" {
+		profile["manager"] = managerName
+	}
 
-	userTraitOptions := []rs.UserTraitOption{
-		rs.WithEmail(user.Email, true),
+	options := []rs.UserTraitOption{
+		rs.WithEmail(email, true),
 		rs.WithUserProfile(profile),
-		rs.WithStatus(v2.UserTrait_Status_STATUS_ENABLED),
 	}
-
-	resource, err := rs.NewUserResource(
-		displayName,
-		resourceTypeUser,
-		user.Id,
-		userTraitOptions,
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return resource, nil
+	return profile, options
 }
 
-// Create a new connector resource for an OneLogin User.
-func userResource(ctx context.Context, user *onelogin.User) (*v2.Resource, error) {
-	var displayName string
-	if user.Username == "" {
-		if user.Firstname != "" || user.Lastname != "" {
-			displayName = fmt.Sprintf("%s %s", user.Firstname, user.Lastname)
-		} else {
+// minimalUserResource creates a minimal connector resource for a OneLogin user under a role.
+func minimalUserResource(user *onelogin.UserUnderRole) (*v2.Resource, error) {
+	firstName, lastName := "", ""
+	if user.Name != "" {
+		parts := strings.Split(user.Name, " ")
+		firstName = parts[0]
+		lastName = strings.Join(parts[1:], " ")
+	}
+
+	displayName := user.Username
+	if displayName == "" {
+		displayName = strings.TrimSpace(firstName + " " + lastName)
+		if displayName == "" {
 			displayName = user.Email
 		}
-	} else {
-		displayName = user.Username
 	}
 
-	profile := map[string]interface{}{
-		"login":      displayName,
-		"user_id":    fmt.Sprintf("%d", user.Id),
-		"first_name": user.Firstname,
-		"last_name":  user.Lastname,
-	}
+	_, options := buildUserProfile(displayName, user.Email, firstName, lastName, "", user.Id)
+	options = append(options, rs.WithStatus(v2.UserTrait_Status_STATUS_ENABLED))
 
-	userTraitOptions := []rs.UserTraitOption{
-		rs.WithEmail(user.Email, true),
-		rs.WithUserProfile(profile),
-	}
-
-	// more information regarding the user status can be found here:
-	// https://github.com/onelogin/onelogin-go-sdk/blob/develop/pkg/onelogin/models/user.go#L12-L22
-	switch user.Status {
-	case 0:
-		userTraitOptions = append(userTraitOptions, rs.WithStatus(v2.UserTrait_Status_STATUS_DISABLED))
-	case 1:
-		userTraitOptions = append(userTraitOptions, rs.WithStatus(v2.UserTrait_Status_STATUS_ENABLED))
-	case 2:
-		userTraitOptions = append(userTraitOptions, rs.WithStatus(v2.UserTrait_Status_STATUS_DELETED))
-	default:
-		userTraitOptions = append(userTraitOptions, rs.WithStatus(v2.UserTrait_Status_STATUS_UNSPECIFIED))
-	}
-
-	resource, err := rs.NewUserResource(
-		displayName,
-		resourceTypeUser,
-		user.Id,
-		userTraitOptions,
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return resource, nil
+	return rs.NewUserResource(displayName, resourceTypeUser, user.Id, options)
 }
 
+// userResource creates a connector resource for a complete OneLogin user object.
+func userResource(user *onelogin.User) (*v2.Resource, error) {
+	displayName := user.Username
+	if displayName == "" {
+		displayName = strings.TrimSpace(user.Firstname + " " + user.Lastname)
+		if displayName == "" {
+			displayName = user.Email
+		}
+	}
+
+	_, options := buildUserProfile(displayName, user.Email, user.Firstname, user.Lastname, user.ManagerName, user.Id)
+
+	switch user.Status {
+	case 0:
+		options = append(options, rs.WithStatus(v2.UserTrait_Status_STATUS_DISABLED))
+	case 1:
+		options = append(options, rs.WithStatus(v2.UserTrait_Status_STATUS_ENABLED))
+	case 2:
+		options = append(options, rs.WithStatus(v2.UserTrait_Status_STATUS_DELETED))
+	default:
+		options = append(options, rs.WithStatus(v2.UserTrait_Status_STATUS_UNSPECIFIED))
+	}
+
+	return rs.NewUserResource(displayName, resourceTypeUser, user.Id, options)
+}
+
+// refreshUserCache updates the local user cache if TTL expired by fetching users from OneLogin.
+func (u *userResourceType) refreshUserCache(ctx context.Context) error {
+	u.usersMutex.Lock()
+	defer u.usersMutex.Unlock()
+
+	if u.users != nil && time.Since(u.usersTimestamp) < usersCacheTTL {
+		return nil
+	}
+
+	u.users = make(map[int]string)
+	cursor := ""
+
+	for {
+		users, nextCursor, err := u.client.GetUsers(ctx, onelogin.PaginationVars{
+			Limit:  ResourcesPageSize,
+			Cursor: cursor,
+		}, "")
+		if err != nil {
+			return fmt.Errorf("onelogin-connector: failed to load users for cache: %w", err)
+		}
+
+		for _, user := range users {
+			u.users[user.Id] = resolveDisplayName(user)
+		}
+		if nextCursor == "" {
+			break
+		}
+		cursor = nextCursor
+	}
+
+	u.usersTimestamp = time.Now()
+	return nil
+}
+
+// resolveDisplayName returns a user's display name based on available fields.
+func resolveDisplayName(user onelogin.User) string {
+	if user.Username != "" {
+		return user.Username
+	}
+	name := fmt.Sprintf("%s %s", user.Firstname, user.Lastname)
+	if strings.TrimSpace(name) == "" {
+		return user.Email
+	}
+	return name
+}
+
+// List retrieves users from OneLogin and returns them as connector resources.
 func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+	logger := ctxzap.Extract(ctx)
+
+	if err := u.refreshUserCache(ctx); err != nil {
+		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to load user cache: %w", err)
+	}
+
 	bag, cursor, err := parsePageToken(pt.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
 	if err != nil {
 		return nil, "", nil, err
 	}
 
-	users, nextCursor, err := u.client.GetUsers(
-		ctx,
-		onelogin.PaginationVars{
-			Limit:  ResourcesPageSize,
-			Cursor: cursor,
-		},
-		"",
-	)
+	users, nextCursor, err := u.client.GetUsers(ctx, onelogin.PaginationVars{
+		Limit:  ResourcesPageSize,
+		Cursor: cursor,
+	}, "")
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to list users: %w", err)
+	}
+
+	displayNameCache := make(map[int]string)
+	var resources []*v2.Resource
+
+	for i := range users {
+		user := &users[i]
+
+		fullUser, err := u.client.GetUserByID(ctx, user.Id)
+		if err != nil {
+			logger.Error("Error obtaining user", zap.Int("user_id", user.Id), zap.Error(err))
+			continue
+		}
+		user = fullUser
+
+		if user.ManagerID != nil {
+			managerID := *user.ManagerID
+			if displayName, ok := displayNameCache[managerID]; ok {
+				user.ManagerName = displayName
+			} else {
+				manager, err := u.client.GetUserByID(ctx, managerID)
+				if err != nil {
+					logger.Error("Error obtaining manager", zap.Int("manager_id", managerID), zap.Error(err))
+				} else {
+					displayName := fmt.Sprintf("%s %s", manager.Firstname, manager.Lastname)
+					displayNameCache[managerID] = displayName
+					user.ManagerName = displayName
+				}
+			}
+		}
+
+		res, err := userResource(user)
+		if err != nil {
+			return nil, "", nil, err
+		}
+		resources = append(resources, res)
 	}
 
 	nextPage, err := bag.NextToken(nextCursor)
@@ -143,29 +206,20 @@ func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagin
 		return nil, "", nil, err
 	}
 
-	var rv []*v2.Resource
-	for _, user := range users {
-		userCopy := user
-		ur, err := userResource(ctx, &userCopy)
-
-		if err != nil {
-			return nil, "", nil, err
-		}
-
-		rv = append(rv, ur)
-	}
-
-	return rv, nextPage, nil, nil
+	return resources, nextPage, nil, nil
 }
 
+// Entitlements returns entitlements for a user resource. Not implemented.
 func (u *userResourceType) Entitlements(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
 	return nil, "", nil, nil
 }
 
+// Grants returns grants for a user resource. Not implemented.
 func (u *userResourceType) Grants(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
 	return nil, "", nil, nil
 }
 
+// userBuilder creates a new instance of the user resource handler.
 func userBuilder(client *onelogin.Client) *userResourceType {
 	return &userResourceType{
 		resourceType: resourceTypeUser,
