@@ -5,34 +5,71 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: 1.22.x
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Run linters
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v5
         with:
           version: latest
           args: --timeout=3m
+
   go-test:
     strategy:
       matrix:
         go-version: [1.22.x]
         platform: [ubuntu-latest]
     runs-on: ${{ matrix.platform }}
+    env:
+      CLIENTID: ${{ secrets.CLIENTID }}
+      CLIENTSECRET: ${{ secrets.CLIENTSECRET }}
+      SUBDOMAIN: ${{ secrets.SUBDOMAIN }}
     steps:
       - name: Install Go
-        if: success()
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
       - name: Checkout code
-        uses: actions/checkout@v3
-      - name: go tests
-        run: go test -v -covermode=count -json ./... > test.json
-      - name: annotate go tests
+        uses: actions/checkout@v4
+      - name: Run go tests
+        run: (set -o pipefail && go test -v -covermode=atomic -json -race ./... | tee test.json)
+      - name: Annotate go tests
         if: always()
         uses: guyarb/golang-test-annotations@v0.5.1
         with:
           test-results: test.json
+
+  integration-test:
+    runs-on: ubuntu-latest
+    env:
+      BATON_LOG_LEVEL: debug
+      CLIENTID: ${{ secrets.CLIENTID }}
+      CLIENTSECRET: ${{ secrets.CLIENTSECRET }}
+      SUBDOMAIN: ${{ secrets.SUBDOMAIN }}
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.22.x
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Build baton-onelogin
+        run: go build -o baton-onelogin ./cmd/baton-onelogin
+      #  This test does not work, because the onelogin API does not allow you to access it when running on GitHub.
+      # - name: Run basic sync test
+      #   run: |
+      #     ./baton-onelogin \
+      #       --onelogin-client-id ${{env.CLIENTID}} \
+      #       --onelogin-client-secret ${{env.CLIENTSECRET}} \
+      #       --subdomain ${{env.SUBDOMAIN}} \
+      #       --log-level debug \
+      #       --file sync.c1z
+
+      #     if [ ! -f "sync.c1z" ]; then
+      #       echo "Error: File sync.c1z was not generated."
+      #       exit 1
+      #     fi
+      - name: List Baton Commands
+        run: ./baton-onelogin --help

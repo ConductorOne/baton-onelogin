@@ -3,6 +3,7 @@ package connector
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/conductorone/baton-onelogin/pkg/onelogin"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
@@ -23,7 +24,7 @@ func (a *appResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 }
 
 // Create a new connector resource for an OneLogin App.
-func appResource(ctx context.Context, app *onelogin.App) (*v2.Resource, error) {
+func appResource(app *onelogin.App) (*v2.Resource, error) {
 	profile := map[string]interface{}{
 		"app_id":   app.Id,
 		"app_name": app.Name,
@@ -72,7 +73,7 @@ func (a *appResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagina
 	var rv []*v2.Resource
 	for _, app := range apps {
 		appCopy := app
-		ur, err := appResource(ctx, &appCopy)
+		ur, err := appResource(&appCopy)
 
 		if err != nil {
 			return nil, "", nil, err
@@ -84,7 +85,7 @@ func (a *appResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagina
 	return rv, nextPage, nil, nil
 }
 
-func (a *appResourceType) Entitlements(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
+func (a *appResourceType) Entitlements(_ context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
 	var rv []*v2.Entitlement
 	memberAssignmentOptions := []ent.EntitlementOption{
 		ent.WithGrantableTo(resourceTypeUser),
@@ -125,10 +126,9 @@ func (a *appResourceType) Grants(ctx context.Context, resource *v2.Resource, tok
 	var rv []*v2.Grant
 
 	for _, app := range appUsers {
-		appCopy := app
-		ur, err := userResource(ctx, &appCopy)
-		if err != nil {
-			return nil, "", nil, err
+		userResource := &v2.ResourceId{
+			ResourceType: resourceTypeUser.Id,
+			Resource:     strconv.Itoa(app.Id),
 		}
 
 		rv = append(
@@ -136,7 +136,7 @@ func (a *appResourceType) Grants(ctx context.Context, resource *v2.Resource, tok
 			grant.NewGrant(
 				resource,
 				roleMembership,
-				ur.Id,
+				userResource,
 			),
 		)
 	}

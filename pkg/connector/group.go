@@ -3,6 +3,7 @@ package connector
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/conductorone/baton-onelogin/pkg/onelogin"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
@@ -23,7 +24,7 @@ func (g *groupResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 }
 
 // Create a new connector resource for an OneLogin Group.
-func groupResource(ctx context.Context, group *onelogin.Group) (*v2.Resource, error) {
+func groupResource(group *onelogin.Group) (*v2.Resource, error) {
 	profile := map[string]interface{}{
 		"group_id":   group.Id,
 		"group_name": group.Name,
@@ -72,7 +73,7 @@ func (g *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagi
 	var rv []*v2.Resource
 	for _, group := range groups {
 		groupCopy := group
-		ur, err := groupResource(ctx, &groupCopy)
+		ur, err := groupResource(&groupCopy)
 
 		if err != nil {
 			return nil, "", nil, err
@@ -84,7 +85,7 @@ func (g *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagi
 	return rv, nextPage, nil, nil
 }
 
-func (g *groupResourceType) Entitlements(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
+func (g *groupResourceType) Entitlements(_ context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
 	var rv []*v2.Entitlement
 	memberAssignmentOptions := []ent.EntitlementOption{
 		ent.WithGrantableTo(resourceTypeUser),
@@ -125,10 +126,9 @@ func (g *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, t
 	var rv []*v2.Grant
 
 	for _, user := range users {
-		userCopy := user
-		ur, err := userResource(ctx, &userCopy)
-		if err != nil {
-			return nil, "", nil, err
+		userResource := &v2.ResourceId{
+			ResourceType: resourceTypeUser.Id,
+			Resource:     strconv.Itoa(user.Id),
 		}
 
 		rv = append(
@@ -136,7 +136,7 @@ func (g *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, t
 			grant.NewGrant(
 				resource,
 				roleMembership,
-				ur.Id,
+				userResource,
 			),
 		)
 	}
