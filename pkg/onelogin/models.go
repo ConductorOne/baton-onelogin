@@ -6,13 +6,13 @@ type BaseResource struct {
 
 type User struct {
 	BaseResource
-	Username    string `json:"username"`
-	Email       string `json:"email"`
-	Firstname   string `json:"firstname"`
-	Lastname    string `json:"lastname"`
-	Status      int    `json:"status"`
-	ManagerID   *int   `json:"manager_user_id,omitempty"`
-	ManagerName string
+	Username     string `json:"username"`
+	Email        string `json:"email"`
+	Firstname    string `json:"firstname"`
+	Lastname     string `json:"lastname"`
+	Status       int    `json:"status"`
+	ManagerId    *int   `json:"manager_user_id,omitempty"`
+	ManagerEmail string
 }
 
 type Role struct {

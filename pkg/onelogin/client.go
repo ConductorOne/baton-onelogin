@@ -53,8 +53,8 @@ func NewClient(ctx context.Context, httpClient *http.Client, clientId, clientSec
 	}, nil
 }
 
-func (c *Client) GetUsers(ctx context.Context, paginationVars PaginationVars, groupId string) ([]User, string, error) {
-	var usersResponse []User
+func (c *Client) GetUsers(ctx context.Context, paginationVars PaginationVars, groupId string) ([]*User, string, error) {
+	var usersResponse []*User
 
 	nextPage, err := c.doRequest(
 		ctx,
@@ -77,7 +77,7 @@ func (c *Client) GetUsers(ctx context.Context, paginationVars PaginationVars, gr
 }
 
 func (c *Client) GetUserByID(ctx context.Context, userID int) (*User, error) {
-	var userResponse User
+	var userResponse *User
 
 	_, err := c.doRequest(
 		ctx,
@@ -91,7 +91,7 @@ func (c *Client) GetUserByID(ctx context.Context, userID int) (*User, error) {
 		return nil, err
 	}
 
-	return &userResponse, nil
+	return userResponse, nil
 }
 
 func (c *Client) GetApps(ctx context.Context, paginationVars PaginationVars) ([]App, string, error) {

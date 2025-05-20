@@ -26,20 +26,24 @@ type userResourceType struct {
 
 const usersCacheTTL = 5 * time.Minute
 
-func (u *userResourceType) ResourceType(ctx context.Context) *v2.ResourceType {
+func (u *userResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return u.resourceType
 }
 
 // buildUserProfile constructs a display name and profile from user details.
-func buildUserProfile(displayName, email, firstName, lastName, managerName string, id int) (map[string]interface{}, []rs.UserTraitOption) {
+func buildUserProfile(displayName, email, firstName, lastName string, managerId *int, managerEmail string, id int) (map[string]interface{}, []rs.UserTraitOption) {
 	profile := map[string]interface{}{
 		"login":      displayName,
 		"user_id":    fmt.Sprintf("%d", id),
 		"first_name": firstName,
 		"last_name":  lastName,
 	}
-	if managerName != "" {
-		profile["manager"] = managerName
+
+	if managerId != nil {
+		profile["manager_user_id"] = fmt.Sprintf("%d", *managerId)
+	}
+	if managerEmail != "" {
+		profile["manager_email"] = managerEmail
 	}
 
 	options := []rs.UserTraitOption{
@@ -49,40 +53,19 @@ func buildUserProfile(displayName, email, firstName, lastName, managerName strin
 	return profile, options
 }
 
-// minimalUserResource creates a minimal connector resource for a OneLogin user under a role.
-func minimalUserResource(user *onelogin.UserUnderRole) (*v2.Resource, error) {
-	firstName, lastName := "", ""
-	if user.Name != "" {
-		parts := strings.Split(user.Name, " ")
-		firstName = parts[0]
-		lastName = strings.Join(parts[1:], " ")
-	}
-
-	displayName := user.Username
-	if displayName == "" {
-		displayName = strings.TrimSpace(firstName + " " + lastName)
-		if displayName == "" {
-			displayName = user.Email
-		}
-	}
-
-	_, options := buildUserProfile(displayName, user.Email, firstName, lastName, "", user.Id)
-	options = append(options, rs.WithStatus(v2.UserTrait_Status_STATUS_ENABLED))
-
-	return rs.NewUserResource(displayName, resourceTypeUser, user.Id, options)
-}
-
 // userResource creates a connector resource for a complete OneLogin user object.
-func userResource(user *onelogin.User) (*v2.Resource, error) {
-	displayName := user.Username
-	if displayName == "" {
-		displayName = strings.TrimSpace(user.Firstname + " " + user.Lastname)
-		if displayName == "" {
-			displayName = user.Email
-		}
-	}
+func parseIntoUserResource(user *onelogin.User) (*v2.Resource, error) {
+	displayName := resolveDisplayName(user)
 
-	_, options := buildUserProfile(displayName, user.Email, user.Firstname, user.Lastname, user.ManagerName, user.Id)
+	_, options := buildUserProfile(
+		displayName,
+		user.Email,
+		user.Firstname,
+		user.Lastname,
+		user.ManagerId,
+		user.ManagerEmail,
+		user.Id,
+	)
 
 	switch user.Status {
 	case 0:
@@ -120,7 +103,7 @@ func (u *userResourceType) refreshUserCache(ctx context.Context) error {
 		}
 
 		for _, user := range users {
-			u.users[user.Id] = resolveDisplayName(user)
+			u.users[user.Id] = user.Email
 		}
 		if nextCursor == "" {
 			break
@@ -133,7 +116,7 @@ func (u *userResourceType) refreshUserCache(ctx context.Context) error {
 }
 
 // resolveDisplayName returns a user's display name based on available fields.
-func resolveDisplayName(user onelogin.User) string {
+func resolveDisplayName(user *onelogin.User) string {
 	if user.Username != "" {
 		return user.Username
 	}
@@ -165,12 +148,9 @@ func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagin
 		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to list users: %w", err)
 	}
 
-	displayNameCache := make(map[int]string)
 	var resources []*v2.Resource
 
-	for i := range users {
-		user := &users[i]
-
+	for _, user := range users {
 		fullUser, err := u.client.GetUserByID(ctx, user.Id)
 		if err != nil {
 			logger.Error("Error obtaining user", zap.Int("user_id", user.Id), zap.Error(err))
@@ -178,23 +158,14 @@ func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagin
 		}
 		user = fullUser
 
-		if user.ManagerID != nil {
-			managerID := *user.ManagerID
-			if displayName, ok := displayNameCache[managerID]; ok {
-				user.ManagerName = displayName
-			} else {
-				manager, err := u.client.GetUserByID(ctx, managerID)
-				if err != nil {
-					logger.Error("Error obtaining manager", zap.Int("manager_id", managerID), zap.Error(err))
-				} else {
-					displayName := fmt.Sprintf("%s %s", manager.Firstname, manager.Lastname)
-					displayNameCache[managerID] = displayName
-					user.ManagerName = displayName
-				}
+		if user.ManagerId != nil {
+			managerId := *user.ManagerId
+			if manager, ok := u.users[managerId]; ok {
+				user.ManagerEmail = manager
 			}
 		}
 
-		res, err := userResource(user)
+		res, err := parseIntoUserResource(user)
 		if err != nil {
 			return nil, "", nil, err
 		}
@@ -210,12 +181,12 @@ func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagin
 }
 
 // Entitlements returns entitlements for a user resource. Not implemented.
-func (u *userResourceType) Entitlements(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
+func (u *userResourceType) Entitlements(_ context.Context, _ *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
 	return nil, "", nil, nil
 }
 
 // Grants returns grants for a user resource. Not implemented.
-func (u *userResourceType) Grants(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
+func (u *userResourceType) Grants(_ context.Context, _ *v2.Resource, _ *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
 	return nil, "", nil, nil
 }
 

@@ -3,6 +3,7 @@ package connector
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/conductorone/baton-onelogin/pkg/onelogin"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
@@ -18,7 +19,7 @@ type groupResourceType struct {
 	client       *onelogin.Client
 }
 
-func (g *groupResourceType) ResourceType(ctx context.Context) *v2.ResourceType {
+func (g *groupResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return g.resourceType
 }
 
@@ -84,7 +85,7 @@ func (g *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagi
 	return rv, nextPage, nil, nil
 }
 
-func (g *groupResourceType) Entitlements(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
+func (g *groupResourceType) Entitlements(_ context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
 	var rv []*v2.Entitlement
 	memberAssignmentOptions := []ent.EntitlementOption{
 		ent.WithGrantableTo(resourceTypeUser),
@@ -125,10 +126,9 @@ func (g *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, t
 	var rv []*v2.Grant
 
 	for _, user := range users {
-		userCopy := user
-		ur, err := userResource(&userCopy)
-		if err != nil {
-			return nil, "", nil, err
+		userResource := &v2.ResourceId{
+			ResourceType: resourceTypeUser.Id,
+			Resource:     strconv.Itoa(user.Id),
 		}
 
 		rv = append(
@@ -136,7 +136,7 @@ func (g *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, t
 			grant.NewGrant(
 				resource,
 				roleMembership,
-				ur.Id,
+				userResource,
 			),
 		)
 	}
