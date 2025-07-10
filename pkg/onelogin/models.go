@@ -44,3 +44,21 @@ type Group struct {
 	BaseResource
 	Name string `json:"name"`
 }
+
+type PrivilegeStatement struct {
+	Effect string   `json:"Effect"`
+	Action []string `json:"Action"`
+	Scope  []string `json:"Scope"`
+}
+
+type Privilege struct {
+	Version   string               `json:"Version"`
+	Statement []PrivilegeStatement `json:"Statement"`
+}
+
+type AccountPrivilege struct {
+	BaseResource
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Privilege   Privilege `json:"privilege"`
+}

@@ -42,19 +42,40 @@ var (
 			v2.ResourceType_TRAIT_GROUP,
 		},
 	}
+	resourceTypePrivilegeAction = &v2.ResourceType{
+		Id:          "privilege_action",
+		DisplayName: "Privilege Action",
+		Traits: []v2.ResourceType_Trait{
+			v2.ResourceType_TRAIT_UNSPECIFIED,
+		},
+	}
+	resourceTypePrivilege = &v2.ResourceType{
+		Id:          "privilege",
+		DisplayName: "Privilege",
+		Traits: []v2.ResourceType_Trait{
+			v2.ResourceType_TRAIT_UNSPECIFIED,
+		},
+	}
 )
 
 type OneLogin struct {
-	client *onelogin.Client
+	client         *onelogin.Client
+	syncPrivileges bool
 }
 
 func (o *OneLogin) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
-	return []connectorbuilder.ResourceSyncer{
+	resources := []connectorbuilder.ResourceSyncer{
 		userBuilder(o.client),
 		roleBuilder(o.client),
 		appBuilder(o.client),
 		groupBuilder(o.client),
 	}
+
+	if o.syncPrivileges {
+		resources = append(resources, privilegeActionBuilder(o.client), privilegeBuilder(o.client))
+	}
+
+	return resources
 }
 
 func (o *OneLogin) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) {
@@ -75,7 +96,7 @@ func (o *OneLogin) Validate(ctx context.Context) (annotations.Annotations, error
 }
 
 // New returns the OneLogin connector.
-func New(ctx context.Context, clientId, clientSecret, subdomain string) (*OneLogin, error) {
+func New(ctx context.Context, clientId, clientSecret, subdomain string, syncPrivileges bool) (*OneLogin, error) {
 	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, ctxzap.Extract(ctx)))
 	if err != nil {
 		return nil, err
@@ -87,6 +108,7 @@ func New(ctx context.Context, clientId, clientSecret, subdomain string) (*OneLog
 	}
 
 	return &OneLogin{
-		client: oneLoginClient,
+		client:         oneLoginClient,
+		syncPrivileges: syncPrivileges,
 	}, nil
 }
