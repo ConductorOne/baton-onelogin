@@ -3,8 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
-	cfg "github.com/conductorone/baton-onelogin/pkg/config"
 	"os"
+
+	cfg "github.com/conductorone/baton-onelogin/pkg/config"
 
 	"github.com/conductorone/baton-onelogin/pkg/connector"
 	configSchema "github.com/conductorone/baton-sdk/pkg/config"

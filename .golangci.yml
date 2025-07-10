@@ -99,6 +99,12 @@ linters:
       - linters:
           - godot
         source: (TODO)
+      - linters:
+          - bodyclose
+          - gocritic
+          - godot
+          - revive
+        path: userentitlement/
     paths:
       - third_party$
       - builtin$
