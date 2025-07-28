@@ -45,16 +45,10 @@ var (
 	resourceTypePrivilegeAction = &v2.ResourceType{
 		Id:          "privilege_action",
 		DisplayName: "Privilege Action",
-		Traits: []v2.ResourceType_Trait{
-			v2.ResourceType_TRAIT_UNSPECIFIED,
-		},
 	}
 	resourceTypePrivilege = &v2.ResourceType{
 		Id:          "privilege",
 		DisplayName: "Privilege",
-		Traits: []v2.ResourceType_Trait{
-			v2.ResourceType_TRAIT_UNSPECIFIED,
-		},
 	}
 )
 

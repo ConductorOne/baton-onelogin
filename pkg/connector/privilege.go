@@ -25,20 +25,10 @@ func (g *privilegeResourceType) ResourceType(_ context.Context) *v2.ResourceType
 
 // Create a new connector resource for an OneLogin Group.
 func privilegeResource(accountPrivilege *onelogin.AccountPrivilege) (*v2.Resource, error) {
-	profile := map[string]interface{}{
-		"id":   accountPrivilege.Id,
-		"name": accountPrivilege.Name,
-	}
-
-	appTraitOptions := []rs.AppTraitOption{
-		rs.WithAppProfile(profile),
-	}
-
-	resource, err := rs.NewAppResource(
+	resource, err := rs.NewResource(
 		accountPrivilege.Name,
 		resourceTypePrivilege,
 		accountPrivilege.Id,
-		appTraitOptions,
 	)
 
 	if err != nil {
