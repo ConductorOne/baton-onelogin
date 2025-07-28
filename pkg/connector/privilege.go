@@ -39,7 +39,12 @@ func privilegeResource(accountPrivilege *onelogin.AccountPrivilege) (*v2.Resourc
 }
 
 func (g *privilegeResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
-	bag, cursor, err := parsePageToken(pt.Token, &v2.ResourceId{ResourceType: resourceTypeRole.Id})
+	bag, cursor, err := parsePageToken(
+		pt.Token,
+		&v2.ResourceId{
+			ResourceType: resourceTypePrivilege.Id,
+		},
+	)
 	if err != nil {
 		return nil, "", nil, err
 	}
@@ -49,7 +54,7 @@ func (g *privilegeResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *
 		Cursor: cursor,
 	})
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to list groups: %w", err)
+		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to list privileges: %w", err)
 	}
 
 	nextPage, err := bag.NextToken(nextCursor)

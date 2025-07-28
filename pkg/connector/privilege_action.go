@@ -22,11 +22,10 @@ func (g *privilegeActionResourceType) ResourceType(_ context.Context) *v2.Resour
 func (g *privilegeActionResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
 	var rv []*v2.Resource
 	for _, action := range onelogin.PrivilegeActions {
-		resource, err := rs.NewAppResource(
+		resource, err := rs.NewResource(
 			action,
 			resourceTypePrivilegeAction,
 			action,
-			[]rs.AppTraitOption{},
 		)
 
 		if err != nil {
