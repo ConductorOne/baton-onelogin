@@ -1,6 +1,6 @@
 package onelogin
 
-// PrivilegeActions https://developers.onelogin.com/api-docs/1/privileges/create-privilege \w*:\w* to "$0",.
+// PrivilegeActions https://developers.onelogin.com/api-docs/1/privileges/create-privilege Regex to format \w*:\w* to "$0",.
 var PrivilegeActions = []string{
 	"Apps:List",
 	"Apps:Get",

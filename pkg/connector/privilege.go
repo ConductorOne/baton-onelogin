@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
+
 	"github.com/conductorone/baton-onelogin/pkg/onelogin"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
@@ -80,30 +82,141 @@ func (g *privilegeResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *
 }
 
 func (g *privilegeResourceType) Entitlements(_ context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
-	return nil, "", nil, nil
+	ents := []*v2.Entitlement{
+		entitlement.NewAssignmentEntitlement(
+			resource,
+			"assign",
+			entitlement.WithDescription("Assign this privilege to a user or role"),
+			entitlement.WithDisplayName(fmt.Sprintf("Assign '%s' Privilege", resource.DisplayName)),
+			entitlement.WithGrantableTo(resourceTypeUser, resourceTypeRole),
+		),
+		entitlement.NewAssignmentEntitlement(
+			resource,
+			"has",
+			entitlement.WithDisplayName("Privilege Action "),
+			entitlement.WithDescription("Privilege actions that this privilege grants"),
+			entitlement.WithGrantableTo(resourceTypeUser, resourceTypeRole),
+			entitlement.WithAnnotation(&v2.EntitlementImmutable{}),
+		),
+	}
+
+	return ents, "", nil, nil
 }
 
 func (g *privilegeResourceType) Grants(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
-	privilege, err := g.client.GetPrivilegeById(ctx, resource.Id.Resource)
+	var bag pagination.Bag
+
+	err := bag.Unmarshal(token.Token)
 	if err != nil {
 		return nil, "", nil, err
 	}
 
-	grants := make([]*v2.Grant, 0)
+	state := bag.Pop()
 
-	for _, statement := range privilege.Privilege.Statement {
-		for _, action := range statement.Action {
-			rsPrivilege := &v2.ResourceId{
-				ResourceType: resourceTypePrivilegeAction.Id,
-				Resource:     action,
-			}
+	if state == nil {
+		bag.Push(pagination.PageState{
+			Token:          "",
+			ResourceTypeID: resourceTypeRole.Id,
+		})
 
-			newGrant := grant.NewGrant(resource, "has", rsPrivilege)
-			grants = append(grants, newGrant)
+		bag.Push(pagination.PageState{
+			Token:          "",
+			ResourceTypeID: resourceTypeUser.Id,
+		})
+
+		privilege, err := g.client.GetPrivilegeById(ctx, resource.Id.Resource)
+		if err != nil {
+			return nil, "", nil, err
 		}
+
+		grants := make([]*v2.Grant, 0)
+
+		for _, statement := range privilege.Privilege.Statement {
+			for _, action := range statement.Action {
+				rsPrivilege := &v2.ResourceId{
+					ResourceType: resourceTypePrivilegeAction.Id,
+					Resource:     action,
+				}
+
+				newGrant := grant.NewGrant(resource, "has", rsPrivilege)
+				grants = append(grants, newGrant)
+			}
+		}
+
+		nextToken, err := bag.Marshal()
+		if err != nil {
+			return nil, "", nil, err
+		}
+
+		return grants, nextToken, nil, nil
 	}
 
-	return grants, "", nil, nil
+	grants := make([]*v2.Grant, 0)
+
+	switch state.ResourceTypeID {
+	case resourceTypeRole.Id:
+		rolesResponse, err := g.client.GetPrivilegeAssignableRoles(ctx, resource.Id.Resource, state.Token)
+		if err != nil {
+			return nil, "", nil, err
+		}
+
+		if rolesResponse.NextLink != "" {
+			bag.Push(pagination.PageState{
+				Token:          rolesResponse.NextLink,
+				ResourceTypeID: resourceTypeRole.Id,
+			})
+		}
+
+		for _, role := range rolesResponse.Roles {
+			grants = append(
+				grants,
+				grant.NewGrant(
+					resource,
+					"assign",
+					&v2.ResourceId{
+						ResourceType: resourceTypeRole.Id,
+						Resource:     role,
+					},
+				),
+			)
+		}
+
+	case resourceTypeUser.Id:
+		usersResponse, err := g.client.GetPrivilegeAssignableUsers(ctx, resource.Id.Resource, state.Token)
+		if err != nil {
+			return nil, "", nil, err
+		}
+
+		if usersResponse.NextLink != "" {
+			bag.Push(pagination.PageState{
+				Token:          usersResponse.NextLink,
+				ResourceTypeID: resourceTypeUser.Id,
+			})
+		}
+
+		for _, user := range usersResponse.Users {
+			grants = append(
+				grants,
+				grant.NewGrant(
+					resource,
+					"assign",
+					&v2.ResourceId{
+						ResourceType: resourceTypeUser.Id,
+						Resource:     user,
+					},
+				),
+			)
+		}
+	default:
+		return nil, "", nil, fmt.Errorf("onelogin-connector: invalid resource type id %s", state.ResourceTypeID)
+	}
+
+	nextToken, err := bag.Marshal()
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	return grants, nextToken, nil, nil
 }
 
 func privilegeBuilder(client *onelogin.Client) *privilegeResourceType {
