@@ -44,3 +44,39 @@ type Group struct {
 	BaseResource
 	Name string `json:"name"`
 }
+
+type PrivilegeStatement struct {
+	Effect string   `json:"Effect"`
+	Action []string `json:"Action"`
+	Scope  []string `json:"Scope"`
+}
+
+type Privilege struct {
+	Version   string               `json:"Version"`
+	Statement []PrivilegeStatement `json:"Statement"`
+}
+
+type AccountPrivilege struct {
+	BaseResource
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Privilege   Privilege `json:"privilege"`
+}
+
+type PrivilegeAssigmentRolesResponse struct {
+	Total        int      `json:"total"`
+	Roles        []string `json:"roles"`
+	BeforeCursor string   `json:"beforeCursor"`
+	PreviousLink string   `json:"previousLink"`
+	AfterCursor  string   `json:"afterCursor"`
+	NextLink     string   `json:"nextLink"`
+}
+
+type PrivilegeAssigmentUsersResponse struct {
+	Total        int      `json:"total"`
+	Users        []string `json:"users"`
+	BeforeCursor string   `json:"beforeCursor"`
+	PreviousLink string   `json:"previousLink"`
+	AfterCursor  string   `json:"afterCursor"`
+	NextLink     string   `json:"nextLink"`
+}

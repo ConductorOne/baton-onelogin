@@ -7,6 +7,7 @@ type Onelogin struct {
 	OneloginClientId string `mapstructure:"onelogin-client-id"`
 	OneloginClientSecret string `mapstructure:"onelogin-client-secret"`
 	Subdomain string `mapstructure:"subdomain"`
+	PrivilegesEnabled bool `mapstructure:"privileges-enabled"`
 }
 
 func (c* Onelogin) findFieldByTag(tagValue string) (any, bool) {

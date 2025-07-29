@@ -20,18 +20,22 @@ const (
 	AuthBaseUrl          = BaseURL + "auth/"
 	GenerateTokenBaseURL = AuthBaseUrl + "oauth2/v2/token"
 
-	APIBaseV1URL      = BaseURL + "api/1/"
-	APIBaseURL        = BaseURL + "api/2/"
-	UsersBaseURL      = APIBaseURL + "users"
-	UserBaseUrl       = UsersBaseURL + "/%s"
-	RolesBaseURL      = APIBaseURL + "roles"
-	RoleUsersBaseURL  = APIBaseURL + "roles/%s/users"
-	RoleAdminsBaseURL = APIBaseURL + "roles/%s/admins"
-	RoleAppsBaseURL   = APIBaseURL + "roles/%s/apps"
-	AppsBaseURL       = APIBaseURL + "apps"
-	AppUsersBaseURL   = APIBaseURL + "apps/%s/users"
-	GroupsBaseURL     = APIBaseV1URL + "groups"
-	ConnectorsBaseURL = APIBaseURL + "connectors"
+	APIBaseV1URL                       = BaseURL + "api/1/"
+	APIBaseURL                         = BaseURL + "api/2/"
+	UsersBaseURL                       = APIBaseURL + "users"
+	UserBaseUrl                        = UsersBaseURL + "/%s"
+	RolesBaseURL                       = APIBaseURL + "roles"
+	RoleUsersBaseURL                   = APIBaseURL + "roles/%s/users"
+	RoleAdminsBaseURL                  = APIBaseURL + "roles/%s/admins"
+	RoleAppsBaseURL                    = APIBaseURL + "roles/%s/apps"
+	AppsBaseURL                        = APIBaseURL + "apps"
+	AppUsersBaseURL                    = APIBaseURL + "apps/%s/users"
+	GroupsBaseURL                      = APIBaseV1URL + "groups"
+	ConnectorsBaseURL                  = APIBaseURL + "connectors"
+	PrivilegesBaseURL                  = APIBaseV1URL + "privileges"
+	GetPrivilegeByIdBaseURL            = PrivilegesBaseURL + "/%s"
+	GetPrivilegeAssignableRolesBaseUrl = PrivilegesBaseURL + "/%s/roles"
+	GetPrivilegeAssignableUsersBaseUrl = PrivilegesBaseURL + "/%s/users"
 )
 
 type Client struct {
@@ -321,6 +325,89 @@ func (c *Client) ValidateScope(ctx context.Context, paginationVars PaginationVar
 	}
 
 	return nextPage, nil
+}
+
+func (c *Client) GetPrivileges(ctx context.Context, paginationVars PaginationVars) ([]AccountPrivilege, string, error) {
+	var response []AccountPrivilege
+
+	nextPage, err := c.doRequest(
+		ctx,
+		fmt.Sprintf(PrivilegesBaseURL, c.subdomain),
+		http.MethodGet,
+		&response,
+		nil,
+		[]QueryParam{
+			&paginationVars,
+		}...,
+	)
+
+	if err != nil {
+		return nil, "", err
+	}
+
+	return response, nextPage, nil
+}
+
+func (c *Client) GetPrivilegeById(ctx context.Context, id string) (*AccountPrivilege, error) {
+	var response AccountPrivilege
+
+	_, err := c.doRequest(
+		ctx,
+		fmt.Sprintf(GetPrivilegeByIdBaseURL, c.subdomain, id),
+		http.MethodGet,
+		&response,
+		nil,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &response, nil
+}
+
+func (c *Client) GetPrivilegeAssignableRoles(ctx context.Context, id string, nextLink string) (*PrivilegeAssigmentRolesResponse, error) {
+	var response PrivilegeAssigmentRolesResponse
+
+	if nextLink == "" {
+		nextLink = fmt.Sprintf(GetPrivilegeAssignableRolesBaseUrl, c.subdomain, id)
+	}
+
+	_, err := c.doRequest(
+		ctx,
+		nextLink,
+		http.MethodGet,
+		&response,
+		nil,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &response, nil
+}
+
+func (c *Client) GetPrivilegeAssignableUsers(ctx context.Context, id string, nextLink string) (*PrivilegeAssigmentUsersResponse, error) {
+	var response PrivilegeAssigmentUsersResponse
+
+	if nextLink == "" {
+		nextLink = fmt.Sprintf(GetPrivilegeAssignableUsersBaseUrl, c.subdomain, id)
+	}
+
+	_, err := c.doRequest(
+		ctx,
+		nextLink,
+		http.MethodGet,
+		&response,
+		nil,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &response, nil
 }
 
 func generateToken(ctx context.Context, httpClient *http.Client, clientId, clientSecret, subdomain string) (string, error) {

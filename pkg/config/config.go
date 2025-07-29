@@ -27,12 +27,20 @@ var OneLoginSubDomain = field.StringField(
 	field.WithIsSecret(true),
 )
 
+var OneLoginEnablePrivileges = field.BoolField(
+	"privileges-enabled",
+	field.WithDisplayName("Enable Privileges sync"),
+	field.WithDescription("Enable syncing of privileges from OneLogin. Requires OneLogin subscription to have access to privileges."),
+	field.WithDefaultValue(false),
+)
+
 //go:generate go run ./gen
 var Config = field.NewConfiguration(
 	[]field.SchemaField{
 		OneLoginClientId,
 		OneLoginClientSecret,
 		OneLoginSubDomain,
+		OneLoginEnablePrivileges,
 	},
 	field.WithConnectorDisplayName("OneLogin"),
 	field.WithHelpUrl("/docs/baton/onelogin-v2"),
