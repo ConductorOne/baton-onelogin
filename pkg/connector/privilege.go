@@ -172,6 +172,14 @@ func (g *privilegeResourceType) Grants(ctx context.Context, resource *v2.Resourc
 						ResourceType: resourceTypeRole.Id,
 						Resource:     role,
 					},
+					grant.WithAnnotation(
+						&v2.GrantExpandable{
+							EntitlementIds: []string{
+								fmt.Sprintf("%s:%s:%s", resourceTypeRole.Id, role, roleAdmin),
+								fmt.Sprintf("%s:%s:%s", resourceTypeRole.Id, role, roleMembership),
+							},
+						},
+					),
 				),
 			)
 		}
