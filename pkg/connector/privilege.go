@@ -46,7 +46,7 @@ func (g *privilegeResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *
 		},
 	)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to parse pagination token for privilege list: %w", err)
 	}
 
 	privileges, nextCursor, err := g.client.GetPrivileges(ctx, onelogin.PaginationVars{
@@ -59,7 +59,7 @@ func (g *privilegeResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *
 
 	nextPage, err := bag.NextToken(nextCursor)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to generate next pagination token for privileges: %w", err)
 	}
 
 	var rv []*v2.Resource
@@ -67,7 +67,7 @@ func (g *privilegeResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *
 		ur, err := privilegeResource(&privilege)
 
 		if err != nil {
-			return nil, "", nil, err
+			return nil, "", nil, fmt.Errorf("onelogin-connector: failed to create resource for privilege %d: %w", privilege.Id, err)
 		}
 
 		rv = append(rv, ur)
@@ -103,7 +103,7 @@ func (g *privilegeResourceType) Grants(ctx context.Context, resource *v2.Resourc
 
 	err := bag.Unmarshal(token.Token)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to unmarshal pagination token for privilege %s grants: %w", resource.Id.Resource, err)
 	}
 
 	state := bag.Pop()
@@ -140,7 +140,7 @@ func (g *privilegeResourceType) Grants(ctx context.Context, resource *v2.Resourc
 
 		nextToken, err := bag.Marshal()
 		if err != nil {
-			return nil, "", nil, err
+			return nil, "", nil, fmt.Errorf("onelogin-connector: failed to marshal pagination bag for privilege %s action grants: %w", resource.Id.Resource, err)
 		}
 
 		return grants, nextToken, nil, nil
@@ -211,12 +211,12 @@ func (g *privilegeResourceType) Grants(ctx context.Context, resource *v2.Resourc
 			)
 		}
 	default:
-		return nil, "", nil, fmt.Errorf("onelogin-connector: invalid resource type id %s", state.ResourceTypeID)
+		return nil, "", nil, fmt.Errorf("onelogin-connector: invalid resource type %s in privilege grants", state.ResourceTypeID)
 	}
 
 	nextToken, err := bag.Marshal()
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to marshal pagination bag for privilege %s grants: %w", resource.Id.Resource, err)
 	}
 
 	return grants, nextToken, nil, nil
