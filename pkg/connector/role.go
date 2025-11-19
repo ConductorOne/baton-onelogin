@@ -14,6 +14,8 @@ import (
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -60,7 +62,7 @@ func roleResource(role *onelogin.Role) (*v2.Resource, error) {
 func (r *roleResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
 	bag, cursor, err := parsePageToken(pt.Token, &v2.ResourceId{ResourceType: resourceTypeRole.Id})
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to parse pagination token for role list: %w", err)
 	}
 
 	roles, nextCursor, err := r.client.GetRoles(
@@ -76,7 +78,7 @@ func (r *roleResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagin
 
 	nextPage, err := bag.NextToken(nextCursor)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to generate next pagination token for roles: %w", err)
 	}
 
 	var rv []*v2.Resource
@@ -85,7 +87,7 @@ func (r *roleResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagin
 		rr, err := roleResource(&roleCopy)
 
 		if err != nil {
-			return nil, "", nil, err
+			return nil, "", nil, fmt.Errorf("onelogin-connector: failed to create resource for role %d: %w", roleCopy.Id, err)
 		}
 
 		rv = append(rv, rr)
@@ -129,7 +131,7 @@ func (r *roleResourceType) Entitlements(_ context.Context, resource *v2.Resource
 func (r *roleResourceType) Grants(ctx context.Context, resource *v2.Resource, pt *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
 	bag, cursor, err := parsePageToken(pt.Token, resource.Id)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to parse pagination token for grants of role %s: %w", resource.Id.Resource, err)
 	}
 
 	var rv []*v2.Grant
@@ -182,7 +184,7 @@ func (r *roleResourceType) Grants(ctx context.Context, resource *v2.Resource, pt
 
 		nextPage, err := bag.NextToken(nextCursor)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, "", nil, fmt.Errorf("onelogin-connector: failed to generate next pagination token for role %s member grants: %w", resource.Id.Resource, err)
 		}
 
 		return rv, nextPage, nil, nil
@@ -219,7 +221,7 @@ func (r *roleResourceType) Grants(ctx context.Context, resource *v2.Resource, pt
 
 		nextPage, err := bag.NextToken(nextCursor)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, "", nil, fmt.Errorf("onelogin-connector: failed to generate next pagination token for role %s admin grants: %w", resource.Id.Resource, err)
 		}
 
 		return rv, nextPage, nil, nil
@@ -242,7 +244,7 @@ func (r *roleResourceType) Grants(ctx context.Context, resource *v2.Resource, pt
 			appCopy := app
 			ur, err := appResource(&appCopy)
 			if err != nil {
-				return nil, "", nil, err
+				return nil, "", nil, fmt.Errorf("onelogin-connector: failed to create resource for application %d in role %s grants: %w", appCopy.Id, resource.Id.Resource, err)
 			}
 
 			rv = append(
@@ -257,18 +259,18 @@ func (r *roleResourceType) Grants(ctx context.Context, resource *v2.Resource, pt
 
 		nextPage, err := bag.NextToken(nextCursor)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, "", nil, fmt.Errorf("onelogin-connector: failed to generate next pagination token for role %s app grants: %w", resource.Id.Resource, err)
 		}
 
 		return rv, nextPage, nil, nil
 
 	default:
-		return nil, "", nil, fmt.Errorf("unknown resource type: %s", bag.ResourceTypeID())
+		return nil, "", nil, fmt.Errorf("onelogin-connector: unknown resource type %s encountered in role grants", bag.ResourceTypeID())
 	}
 
 	nextPage, err := bag.Marshal()
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to marshal pagination bag for role %s grants: %w", resource.Id.Resource, err)
 	}
 
 	return rv, nextPage, nil, nil
@@ -283,7 +285,10 @@ func (r *roleResourceType) Grant(ctx context.Context, principal *v2.Resource, en
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, fmt.Errorf("onelogin-connector: only users can be granted role membership")
+		return nil, status.Errorf(codes.InvalidArgument,
+			"onelogin-connector: invalid principal type %s for role grant operation",
+			principal.Id.ResourceType,
+		)
 	}
 
 	err := r.client.GrantRole(ctx, entitlement.Resource.Id.Resource, principal.Id.Resource, entitlement.Slug)
@@ -302,16 +307,19 @@ func (r *roleResourceType) Revoke(ctx context.Context, grant *v2.Grant) (annotat
 
 	if principal.Id.ResourceType != resourceTypeUser.Id {
 		l.Warn(
-			"baton-onelogin: only users can have role membership revoked",
+			"onelogin-connector: only users can have role membership revoked",
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, fmt.Errorf("baton-onelogin: only users can have role membership revoked")
+		return nil, status.Errorf(codes.InvalidArgument,
+			"onelogin-connector: invalid principal type %s for role revoke operation",
+			principal.Id.ResourceType,
+		)
 	}
 
 	err := r.client.RevokeRole(ctx, entitlement.Resource.Id.Resource, principal.Id.Resource, entitlement.Slug)
 	if err != nil {
-		return nil, fmt.Errorf("baton-onelogin: failed to revoke %s role: %w", entitlement.Slug, err)
+		return nil, fmt.Errorf("onelogin-connector failed to revoke %s role: %w", entitlement.Slug, err)
 	}
 
 	return nil, nil

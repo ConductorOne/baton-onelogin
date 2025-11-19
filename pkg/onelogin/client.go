@@ -10,8 +10,8 @@ import (
 	"net/url"
 	"strconv"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+	"github.com/conductorone/baton-sdk/pkg/uhttp"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 )
 
 const (
@@ -39,19 +39,29 @@ const (
 )
 
 type Client struct {
-	httpClient *http.Client
+	httpClient *uhttp.BaseHttpClient
 	token      string
 	subdomain  string
 }
 
-func NewClient(ctx context.Context, httpClient *http.Client, clientId, clientSecret, subdomain string) (*Client, error) {
-	accessToken, err := generateToken(ctx, httpClient, clientId, clientSecret, subdomain)
+func NewClient(ctx context.Context, clientId, clientSecret, subdomain string) (*Client, error) {
+	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, ctxzap.Extract(ctx)))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("onelogin-connector: failed to create HTTP client: %w", err)
+	}
+
+	wrappedClient, err := uhttp.NewBaseHttpClientWithContext(ctx, httpClient)
+	if err != nil {
+		return nil, fmt.Errorf("onelogin-connector: failed to create wrapped HTTP client: %w", err)
+	}
+
+	accessToken, err := generateToken(ctx, wrappedClient, clientId, clientSecret, subdomain)
+	if err != nil {
+		return nil, fmt.Errorf("onelogin-connector: failed to generate access token during client initialization: %w", err)
 	}
 
 	return &Client{
-		httpClient: httpClient,
+		httpClient: wrappedClient,
 		token:      accessToken,
 		subdomain:  subdomain,
 	}, nil
@@ -263,7 +273,7 @@ func (c *Client) GrantRole(ctx context.Context, roleId, userId, entitlement stri
 
 	payload, e := json.Marshal([]string{userId})
 	if e != nil {
-		return e
+		return fmt.Errorf("onelogin-connector: failed to marshal grant role payload for user %s to role %s: %w", userId, roleId, e)
 	}
 
 	_, err := c.doRequest(
@@ -290,7 +300,7 @@ func (c *Client) RevokeRole(ctx context.Context, roleId, userId, entitlement str
 
 	payload, e := json.Marshal([]string{userId})
 	if e != nil {
-		return e
+		return fmt.Errorf("onelogin-connector: failed to marshal revoke role payload for user %s from role %s: %w", userId, roleId, e)
 	}
 	_, err := c.doRequest(
 		ctx,
@@ -321,7 +331,7 @@ func (c *Client) ValidateScope(ctx context.Context, paginationVars PaginationVar
 	)
 
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("onelogin-connector: failed to validate connector scope permissions: %w", err)
 	}
 
 	return nextPage, nil
@@ -410,14 +420,14 @@ func (c *Client) GetPrivilegeAssignableUsers(ctx context.Context, id string, nex
 	return &response, nil
 }
 
-func generateToken(ctx context.Context, httpClient *http.Client, clientId, clientSecret, subdomain string) (string, error) {
+func generateToken(ctx context.Context, httpClient *uhttp.BaseHttpClient, clientId, clientSecret, subdomain string) (string, error) {
 	var credentialsResponse Credentials
 	var body io.Reader
 
 	// set request body
 	jsonBody, err := json.Marshal(NewCredentialsGrant())
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("onelogin-connector: failed to marshal token request body: %w", err)
 	}
 	body = bytes.NewBuffer(jsonBody)
 
@@ -429,7 +439,7 @@ func generateToken(ctx context.Context, httpClient *http.Client, clientId, clien
 		body,
 	)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("onelogin-connector: failed to create token generation request: %w", err)
 	}
 
 	// set request headers
@@ -445,12 +455,8 @@ func generateToken(ctx context.Context, httpClient *http.Client, clientId, clien
 
 	defer rawResponse.Body.Close()
 
-	if rawResponse.StatusCode >= 300 {
-		return "", status.Error(codes.Code(rawResponse.StatusCode), "Request failed") //nolint:gosec // safe conversion: HTTP status code is always in range 0-599
-	}
-
 	if err := json.NewDecoder(rawResponse.Body).Decode(&credentialsResponse); err != nil {
-		return "", err
+		return "", fmt.Errorf("onelogin-connector: failed to decode token response body: %w", err)
 	}
 
 	return credentialsResponse.AccessToken, nil
@@ -466,7 +472,7 @@ func (c *Client) doRequest(
 ) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, method, urlAddress, bytes.NewReader(payload))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("onelogin-connector: failed to create HTTP request: %w", err)
 	}
 
 	queryParams := url.Values{}
@@ -487,13 +493,9 @@ func (c *Client) doRequest(
 
 	defer rawResponse.Body.Close()
 
-	if rawResponse.StatusCode >= 300 {
-		return "", status.Error(codes.Code(rawResponse.StatusCode), "Request failed") //nolint:gosec // safe conversion: HTTP status code is always in range 0-599
-	}
-
 	if method != http.MethodDelete {
 		if err := json.NewDecoder(rawResponse.Body).Decode(&resourceResponse); err != nil {
-			return "", err
+			return "", fmt.Errorf("onelogin-connector: failed to decode response body from %s: %w", urlAddress, err)
 		}
 	}
 

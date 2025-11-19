@@ -51,7 +51,7 @@ func groupResource(group *onelogin.Group) (*v2.Resource, error) {
 func (g *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
 	bag, cursor, err := parsePageToken(pt.Token, &v2.ResourceId{ResourceType: resourceTypeGroup.Id})
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to parse pagination token for group list: %w", err)
 	}
 
 	groups, nextCursor, err := g.client.GetGroups(
@@ -67,7 +67,7 @@ func (g *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagi
 
 	nextPage, err := bag.NextToken(nextCursor)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to generate next pagination token for groups: %w", err)
 	}
 
 	var rv []*v2.Resource
@@ -76,7 +76,7 @@ func (g *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagi
 		ur, err := groupResource(&groupCopy)
 
 		if err != nil {
-			return nil, "", nil, err
+			return nil, "", nil, fmt.Errorf("onelogin-connector: failed to create resource for group %d: %w", groupCopy.Id, err)
 		}
 
 		rv = append(rv, ur)
@@ -108,7 +108,7 @@ func (g *groupResourceType) Entitlements(_ context.Context, resource *v2.Resourc
 func (g *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
 	bag, cursor, err := parsePageToken(token.Token, resource.Id)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to parse pagination token for grants of group %s: %w", resource.Id.Resource, err)
 	}
 
 	users, nextCursor, err := g.client.GetUsers(
@@ -143,7 +143,7 @@ func (g *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, t
 
 	nextPage, err := bag.NextToken(nextCursor)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to generate next pagination token for group %s grants: %w", resource.Id.Resource, err)
 	}
 
 	return rv, nextPage, nil, nil

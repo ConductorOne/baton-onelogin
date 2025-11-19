@@ -8,8 +8,6 @@ import (
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
-	"github.com/conductorone/baton-sdk/pkg/uhttp"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 )
 
 var (
@@ -83,7 +81,7 @@ func (o *OneLogin) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) 
 func (o *OneLogin) Validate(ctx context.Context) (annotations.Annotations, error) {
 	_, err := o.client.ValidateScope(ctx, onelogin.PaginationVars{Limit: 1})
 	if err != nil {
-		return nil, fmt.Errorf("onelogin-connector: unauthorized: %w", err)
+		return nil, fmt.Errorf("onelogin-connector: credentials lack required scope for connector validation: %w", err)
 	}
 
 	return nil, nil
@@ -91,14 +89,9 @@ func (o *OneLogin) Validate(ctx context.Context) (annotations.Annotations, error
 
 // New returns the OneLogin connector.
 func New(ctx context.Context, clientId, clientSecret, subdomain string, syncPrivileges bool) (*OneLogin, error) {
-	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, ctxzap.Extract(ctx)))
+	oneLoginClient, err := onelogin.NewClient(ctx, clientId, clientSecret, subdomain)
 	if err != nil {
-		return nil, err
-	}
-
-	oneLoginClient, err := onelogin.NewClient(ctx, httpClient, clientId, clientSecret, subdomain)
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("onelogin-connector: failed to initialize OneLogin client: %w", err)
 	}
 
 	return &OneLogin{

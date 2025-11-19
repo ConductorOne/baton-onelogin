@@ -51,7 +51,7 @@ func appResource(app *onelogin.App) (*v2.Resource, error) {
 func (a *appResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
 	bag, cursor, err := parsePageToken(pt.Token, &v2.ResourceId{ResourceType: resourceTypeApp.Id})
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to parse pagination token for application list: %w", err)
 	}
 
 	apps, nextCursor, err := a.client.GetApps(
@@ -67,7 +67,7 @@ func (a *appResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagina
 
 	nextPage, err := bag.NextToken(nextCursor)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, fmt.Errorf("onelogin-connector:failed to generate next pagination token for applications: %w", err)
 	}
 
 	var rv []*v2.Resource
@@ -76,7 +76,7 @@ func (a *appResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagina
 		ur, err := appResource(&appCopy)
 
 		if err != nil {
-			return nil, "", nil, err
+			return nil, "", nil, fmt.Errorf("onelogin-connector:failed to create resource for application %d: %w", appCopy.Id, err)
 		}
 
 		rv = append(rv, ur)
@@ -108,7 +108,7 @@ func (a *appResourceType) Entitlements(_ context.Context, resource *v2.Resource,
 func (a *appResourceType) Grants(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
 	bag, cursor, err := parsePageToken(token.Token, resource.Id)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to parse pagination token for grants of application %s: %w", resource.Id.Resource, err)
 	}
 
 	appUsers, nextCursor, err := a.client.GetAppUsers(
@@ -143,7 +143,7 @@ func (a *appResourceType) Grants(ctx context.Context, resource *v2.Resource, tok
 
 	nextPage, err := bag.NextToken(nextCursor)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, fmt.Errorf("onelogin-connector:failed to generate next pagination token for application %s grants: %w", resource.Id.Resource, err)
 	}
 
 	return rv, nextPage, nil, nil

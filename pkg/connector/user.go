@@ -137,7 +137,7 @@ func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagin
 
 	bag, cursor, err := parsePageToken(pt.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to parse pagination token for user list: %w", err)
 	}
 
 	users, nextCursor, err := u.client.GetUsers(ctx, onelogin.PaginationVars{
@@ -153,7 +153,7 @@ func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagin
 	for _, user := range users {
 		fullUser, err := u.client.GetUserByID(ctx, user.Id)
 		if err != nil {
-			logger.Error("Error obtaining user", zap.Int("user_id", user.Id), zap.Error(err))
+			logger.Error("onelogin-connector: failed to fetch user details during list", zap.Int("user_id", user.Id), zap.Error(err))
 			continue
 		}
 		user = fullUser
@@ -167,14 +167,14 @@ func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagin
 
 		res, err := parseIntoUserResource(user)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, "", nil, fmt.Errorf("onelogin-connector: failed to create resource for user %d: %w", user.Id, err)
 		}
 		resources = append(resources, res)
 	}
 
 	nextPage, err := bag.NextToken(nextCursor)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to generate next pagination token for users: %w", err)
 	}
 
 	return resources, nextPage, nil, nil
