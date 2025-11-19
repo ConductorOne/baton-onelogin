@@ -5,8 +5,6 @@ import (
 
 	"github.com/conductorone/baton-onelogin/pkg/onelogin"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
-	"github.com/conductorone/baton-sdk/pkg/annotations"
-	"github.com/conductorone/baton-sdk/pkg/pagination"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
 )
 
@@ -19,7 +17,7 @@ func (g *privilegeActionResourceType) ResourceType(_ context.Context) *v2.Resour
 	return g.resourceType
 }
 
-func (g *privilegeActionResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+func (g *privilegeActionResourceType) List(ctx context.Context, _ *v2.ResourceId, _ rs.SyncOpAttrs) ([]*v2.Resource, *rs.SyncOpResults, error) {
 	var rv []*v2.Resource
 	for _, action := range onelogin.PrivilegeActions {
 		resource, err := rs.NewResource(
@@ -29,21 +27,21 @@ func (g *privilegeActionResourceType) List(ctx context.Context, _ *v2.ResourceId
 		)
 
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 
 		rv = append(rv, resource)
 	}
 
-	return rv, "", nil, nil
+	return rv, nil, nil
 }
 
-func (g *privilegeActionResourceType) Entitlements(_ context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
-	return nil, "", nil, nil
+func (g *privilegeActionResourceType) Entitlements(_ context.Context, _ *v2.Resource, _ rs.SyncOpAttrs) ([]*v2.Entitlement, *rs.SyncOpResults, error) {
+	return nil, nil, nil
 }
 
-func (g *privilegeActionResourceType) Grants(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
-	return nil, "", nil, nil
+func (g *privilegeActionResourceType) Grants(_ context.Context, _ *v2.Resource, _ rs.SyncOpAttrs) ([]*v2.Grant, *rs.SyncOpResults, error) {
+	return nil, nil, nil
 }
 
 func privilegeActionBuilder(client *onelogin.Client) *privilegeActionResourceType {

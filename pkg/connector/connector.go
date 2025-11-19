@@ -4,10 +4,14 @@ import (
 	"context"
 	"fmt"
 
+	cfg "github.com/conductorone/baton-onelogin/pkg/config"
 	"github.com/conductorone/baton-onelogin/pkg/onelogin"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
+	"github.com/conductorone/baton-sdk/pkg/cli"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"go.uber.org/zap"
 )
 
 var (
@@ -55,8 +59,8 @@ type OneLogin struct {
 	syncPrivileges bool
 }
 
-func (o *OneLogin) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
-	resources := []connectorbuilder.ResourceSyncer{
+func (o *OneLogin) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncerV2 {
+	resources := []connectorbuilder.ResourceSyncerV2{
 		userBuilder(o.client),
 		roleBuilder(o.client),
 		appBuilder(o.client),
@@ -88,7 +92,7 @@ func (o *OneLogin) Validate(ctx context.Context) (annotations.Annotations, error
 }
 
 // New returns the OneLogin connector.
-func New(ctx context.Context, clientId, clientSecret, subdomain string, syncPrivileges bool) (*OneLogin, error) {
+func NewConnector(ctx context.Context, clientId, clientSecret, subdomain string, syncPrivileges bool) (*OneLogin, error) {
 	oneLoginClient, err := onelogin.NewClient(ctx, clientId, clientSecret, subdomain)
 	if err != nil {
 		return nil, fmt.Errorf("onelogin-connector: failed to initialize OneLogin client: %w", err)
@@ -98,4 +102,22 @@ func New(ctx context.Context, clientId, clientSecret, subdomain string, syncPriv
 		client:         oneLoginClient,
 		syncPrivileges: syncPrivileges,
 	}, nil
+}
+
+// New returns the OneLogin connector configured to sync against the instance URL.
+func New(ctx context.Context, config *cfg.Onelogin, opts *cli.ConnectorOpts) (connectorbuilder.ConnectorBuilderV2, []connectorbuilder.Opt, error) {
+	l := ctxzap.Extract(ctx)
+	cb, err := NewConnector(
+		ctx,
+		config.OneloginClientId,
+		config.OneloginClientSecret,
+		config.Subdomain,
+		config.PrivilegesEnabled,
+	)
+	if err != nil {
+		l.Error("error creating connector", zap.Error(err))
+		return nil, nil, err
+	}
+
+	return cb, nil, nil
 }

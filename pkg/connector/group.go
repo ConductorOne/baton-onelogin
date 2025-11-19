@@ -7,8 +7,6 @@ import (
 
 	"github.com/conductorone/baton-onelogin/pkg/onelogin"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
-	"github.com/conductorone/baton-sdk/pkg/annotations"
-	"github.com/conductorone/baton-sdk/pkg/pagination"
 	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
@@ -48,10 +46,11 @@ func groupResource(group *onelogin.Group) (*v2.Resource, error) {
 	return resource, nil
 }
 
-func (g *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
-	bag, cursor, err := parsePageToken(pt.Token, &v2.ResourceId{ResourceType: resourceTypeGroup.Id})
+func (g *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, attr rs.SyncOpAttrs) ([]*v2.Resource, *rs.SyncOpResults, error) {
+	token := attr.PageToken.Token
+	bag, cursor, err := parsePageToken(token, &v2.ResourceId{ResourceType: resourceTypeGroup.Id})
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to parse pagination token for group list: %w", err)
+		return nil, nil, fmt.Errorf("onelogin-connector: failed to parse pagination token for group list: %w", err)
 	}
 
 	groups, nextCursor, err := g.client.GetGroups(
@@ -62,12 +61,12 @@ func (g *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagi
 		},
 	)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to list groups: %w", err)
+		return nil, nil, fmt.Errorf("onelogin-connector: failed to list groups: %w", err)
 	}
 
 	nextPage, err := bag.NextToken(nextCursor)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to generate next pagination token for groups: %w", err)
+		return nil, nil, fmt.Errorf("onelogin-connector: failed to generate next pagination token for groups: %w", err)
 	}
 
 	var rv []*v2.Resource
@@ -76,16 +75,18 @@ func (g *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagi
 		ur, err := groupResource(&groupCopy)
 
 		if err != nil {
-			return nil, "", nil, fmt.Errorf("onelogin-connector: failed to create resource for group %d: %w", groupCopy.Id, err)
+			return nil, nil, fmt.Errorf("onelogin-connector: failed to create resource for group %d: %w", groupCopy.Id, err)
 		}
 
 		rv = append(rv, ur)
 	}
 
-	return rv, nextPage, nil, nil
+	return rv, &rs.SyncOpResults{
+		NextPageToken: nextPage,
+	}, nil
 }
 
-func (g *groupResourceType) Entitlements(_ context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
+func (g *groupResourceType) Entitlements(_ context.Context, resource *v2.Resource, attr rs.SyncOpAttrs) ([]*v2.Entitlement, *rs.SyncOpResults, error) {
 	var rv []*v2.Entitlement
 	memberAssignmentOptions := []ent.EntitlementOption{
 		ent.WithGrantableTo(resourceTypeUser),
@@ -102,13 +103,14 @@ func (g *groupResourceType) Entitlements(_ context.Context, resource *v2.Resourc
 		),
 	)
 
-	return rv, "", nil, nil
+	return rv, nil, nil
 }
 
-func (g *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
-	bag, cursor, err := parsePageToken(token.Token, resource.Id)
+func (g *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, attr rs.SyncOpAttrs) ([]*v2.Grant, *rs.SyncOpResults, error) {
+	token := attr.PageToken.Token
+	bag, cursor, err := parsePageToken(token, resource.Id)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to parse pagination token for grants of group %s: %w", resource.Id.Resource, err)
+		return nil, nil, fmt.Errorf("onelogin-connector: failed to parse pagination token for grants of group %s: %w", resource.Id.Resource, err)
 	}
 
 	users, nextCursor, err := g.client.GetUsers(
@@ -120,7 +122,7 @@ func (g *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, t
 		resource.Id.Resource,
 	)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to list group users: %w", err)
+		return nil, nil, fmt.Errorf("onelogin-connector: failed to list group users: %w", err)
 	}
 
 	var rv []*v2.Grant
@@ -143,10 +145,12 @@ func (g *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, t
 
 	nextPage, err := bag.NextToken(nextCursor)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to generate next pagination token for group %s grants: %w", resource.Id.Resource, err)
+		return nil, nil, fmt.Errorf("onelogin-connector: failed to generate next pagination token for group %s grants: %w", resource.Id.Resource, err)
 	}
 
-	return rv, nextPage, nil, nil
+	return rv, &rs.SyncOpResults{
+		NextPageToken: nextPage,
+	}, nil
 }
 
 func groupBuilder(client *onelogin.Client) *groupResourceType {
