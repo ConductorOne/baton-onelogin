@@ -75,36 +75,29 @@ func parseIntoUserResource(user *onelogin.User) (*v2.Resource, error) {
 	return rs.NewUserResource(displayName, resourceTypeUser, user.Id, options)
 }
 
-// storeUsersInCache sets the session storage user cache by fetching users from OneLogin.
-func (u *userResourceType) storeUsersInCache(ctx context.Context, sessionStorage sessions.SessionStore) error {
-	cursor := ""
-
-	for {
-		users, nextCursor, err := u.client.GetUsers(ctx, onelogin.PaginationVars{
-			Limit:  ResourcesPageSize,
-			Cursor: cursor,
-		}, "")
-		if err != nil {
-			return fmt.Errorf("onelogin-connector: failed to load users for cache: %w", err)
-		}
-
-		session.SetManyJSON(ctx, sessionStorage, parseJSONCache(users))
-		if nextCursor == "" {
-			break
-		}
-		cursor = nextCursor
+// getOrFetchUserEmail retrieves the user's email from the session cache or fetches it from OneLogin.
+func (u *userResourceType) getOrFetchUserEmail(ctx context.Context, sessionStorage sessions.SessionStore, userID int) (string, error) {
+	userIDStr := strconv.Itoa(userID)
+	email, found, err := session.GetJSON[string](ctx, sessionStorage, userIDStr)
+	if err != nil {
+		return "", fmt.Errorf("onelogin-connector: failed to get user email from cache for user %d: %w", userID, err)
+	}
+	if found {
+		return email, nil
 	}
 
-	return nil
-}
-
-func parseJSONCache(users []*onelogin.User) map[string]string {
-	usersMap := make(map[string]string)
-	for _, user := range users {
-		userIDStr := strconv.Itoa(user.Id)
-		usersMap[userIDStr] = user.Email
+	user, err := u.client.GetUserByID(ctx, userID)
+	if err != nil {
+		return "", fmt.Errorf("onelogin-connector: failed to fetch user %d from OneLogin: %w", userID, err)
 	}
-	return usersMap
+
+	// Store in cache for future use
+	err = session.SetJSON(ctx, sessionStorage, userIDStr, user.Email)
+	if err != nil {
+		return "", fmt.Errorf("onelogin-connector: failed to store user email in cache for user %d: %w", userID, err)
+	}
+
+	return user.Email, nil
 }
 
 // resolveDisplayName returns a user's display name based on available fields.
@@ -124,10 +117,6 @@ func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, attr rs.S
 	logger := ctxzap.Extract(ctx)
 
 	token := attr.PageToken.Token
-	if token == "" {
-		// First page, load cache
-		u.storeUsersInCache(ctx, attr.Session)
-	}
 	bag, cursor, err := parsePageToken(token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
 	if err != nil {
 		return nil, nil, fmt.Errorf("onelogin-connector: failed to parse pagination token for user list: %w", err)
@@ -152,14 +141,11 @@ func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, attr rs.S
 		user = fullUser
 
 		if user.ManagerId != nil {
-			managerId := strconv.Itoa(*user.ManagerId)
-			manager, found, err := session.GetJSON[string](ctx, attr.Session, managerId)
+			managerEmail, err := u.getOrFetchUserEmail(ctx, attr.Session, *user.ManagerId)
 			if err != nil {
 				return nil, nil, fmt.Errorf("onelogin-connector: failed to get manager from cache for user %d: %w", user.Id, err)
 			}
-			if found {
-				user.ManagerEmail = manager
-			}
+			user.ManagerEmail = managerEmail
 		}
 
 		res, err := parseIntoUserResource(user)
