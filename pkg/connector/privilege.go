@@ -8,7 +8,6 @@ import (
 
 	"github.com/conductorone/baton-onelogin/pkg/onelogin"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
-	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
@@ -38,15 +37,16 @@ func privilegeResource(accountPrivilege *onelogin.AccountPrivilege) (*v2.Resourc
 	return resource, nil
 }
 
-func (g *privilegeResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+func (g *privilegeResourceType) List(ctx context.Context, _ *v2.ResourceId, attr rs.SyncOpAttrs) ([]*v2.Resource, *rs.SyncOpResults, error) {
+	token := attr.PageToken.Token
 	bag, cursor, err := parsePageToken(
-		pt.Token,
+		token,
 		&v2.ResourceId{
 			ResourceType: resourceTypePrivilege.Id,
 		},
 	)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to parse pagination token for privilege list: %w", err)
+		return nil, nil, fmt.Errorf("onelogin-connector: failed to parse pagination token for privilege list: %w", err)
 	}
 
 	privileges, nextCursor, err := g.client.GetPrivileges(ctx, onelogin.PaginationVars{
@@ -54,12 +54,12 @@ func (g *privilegeResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *
 		Cursor: cursor,
 	})
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to list privileges: %w", err)
+		return nil, nil, fmt.Errorf("onelogin-connector: failed to list privileges: %w", err)
 	}
 
 	nextPage, err := bag.NextToken(nextCursor)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to generate next pagination token for privileges: %w", err)
+		return nil, nil, fmt.Errorf("onelogin-connector: failed to generate next pagination token for privileges: %w", err)
 	}
 
 	var rv []*v2.Resource
@@ -67,16 +67,18 @@ func (g *privilegeResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *
 		ur, err := privilegeResource(&privilege)
 
 		if err != nil {
-			return nil, "", nil, fmt.Errorf("onelogin-connector: failed to create resource for privilege %d: %w", privilege.Id, err)
+			return nil, nil, fmt.Errorf("onelogin-connector: failed to create resource for privilege %d: %w", privilege.Id, err)
 		}
 
 		rv = append(rv, ur)
 	}
 
-	return rv, nextPage, nil, nil
+	return rv, &rs.SyncOpResults{
+		NextPageToken: nextPage,
+	}, nil
 }
 
-func (g *privilegeResourceType) Entitlements(_ context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
+func (g *privilegeResourceType) Entitlements(_ context.Context, resource *v2.Resource, _ rs.SyncOpAttrs) ([]*v2.Entitlement, *rs.SyncOpResults, error) {
 	ents := []*v2.Entitlement{
 		entitlement.NewAssignmentEntitlement(
 			resource,
@@ -95,15 +97,16 @@ func (g *privilegeResourceType) Entitlements(_ context.Context, resource *v2.Res
 		),
 	}
 
-	return ents, "", nil, nil
+	return ents, nil, nil
 }
 
-func (g *privilegeResourceType) Grants(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
+func (g *privilegeResourceType) Grants(ctx context.Context, resource *v2.Resource, attr rs.SyncOpAttrs) ([]*v2.Grant, *rs.SyncOpResults, error) {
 	var bag pagination.Bag
 
-	err := bag.Unmarshal(token.Token)
+	token := attr.PageToken.Token
+	err := bag.Unmarshal(token)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to unmarshal pagination token for privilege %s grants: %w", resource.Id.Resource, err)
+		return nil, nil, fmt.Errorf("onelogin-connector: failed to unmarshal pagination token for privilege %s grants: %w", resource.Id.Resource, err)
 	}
 
 	state := bag.Pop()
@@ -121,7 +124,7 @@ func (g *privilegeResourceType) Grants(ctx context.Context, resource *v2.Resourc
 
 		privilege, err := g.client.GetPrivilegeById(ctx, resource.Id.Resource)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 
 		grants := make([]*v2.Grant, 0)
@@ -140,10 +143,12 @@ func (g *privilegeResourceType) Grants(ctx context.Context, resource *v2.Resourc
 
 		nextToken, err := bag.Marshal()
 		if err != nil {
-			return nil, "", nil, fmt.Errorf("onelogin-connector: failed to marshal pagination bag for privilege %s action grants: %w", resource.Id.Resource, err)
+			return nil, nil, fmt.Errorf("onelogin-connector: failed to marshal pagination bag for privilege %s action grants: %w", resource.Id.Resource, err)
 		}
 
-		return grants, nextToken, nil, nil
+		return grants, &rs.SyncOpResults{
+			NextPageToken: nextToken,
+		}, nil
 	}
 
 	grants := make([]*v2.Grant, 0)
@@ -152,7 +157,7 @@ func (g *privilegeResourceType) Grants(ctx context.Context, resource *v2.Resourc
 	case resourceTypeRole.Id:
 		rolesResponse, err := g.client.GetPrivilegeAssignableRoles(ctx, resource.Id.Resource, state.Token)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 
 		if rolesResponse.NextLink != "" {
@@ -187,7 +192,7 @@ func (g *privilegeResourceType) Grants(ctx context.Context, resource *v2.Resourc
 	case resourceTypeUser.Id:
 		usersResponse, err := g.client.GetPrivilegeAssignableUsers(ctx, resource.Id.Resource, state.Token)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 
 		if usersResponse.NextLink != "" {
@@ -211,15 +216,17 @@ func (g *privilegeResourceType) Grants(ctx context.Context, resource *v2.Resourc
 			)
 		}
 	default:
-		return nil, "", nil, fmt.Errorf("onelogin-connector: invalid resource type %s in privilege grants", state.ResourceTypeID)
+		return nil, nil, fmt.Errorf("onelogin-connector: invalid resource type %s in privilege grants", state.ResourceTypeID)
 	}
 
 	nextToken, err := bag.Marshal()
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("onelogin-connector: failed to marshal pagination bag for privilege %s grants: %w", resource.Id.Resource, err)
+		return nil, nil, fmt.Errorf("onelogin-connector: failed to marshal pagination bag for privilege %s grants: %w", resource.Id.Resource, err)
 	}
 
-	return grants, nextToken, nil, nil
+	return grants, &rs.SyncOpResults{
+		NextPageToken: nextToken,
+	}, nil
 }
 
 func privilegeBuilder(client *onelogin.Client) *privilegeResourceType {
