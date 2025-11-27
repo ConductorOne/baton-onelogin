@@ -28,7 +28,11 @@ jobs:
         run: ./connector config > config_schema.json
 
       - name: Run and save capabilities output
-        run: ./connector capabilities --partner-user-id "test-id" --partner-user-secret "test-secret" > baton_capabilities.json
+        env:
+          BATON_ONELOGIN_CLIENT_ID: ${{ secrets.CLIENTID }}
+          BATON_ONELOGIN_CLIENT_SECRET: ${{ secrets.CLIENTSECRET }}
+          BATON_SUBDOMAIN: ${{ secrets.SUBDOMAIN }}
+        run: ./connector capabilities > baton_capabilities.json
 
       - name: Commit changes
         uses: EndBug/add-and-commit@v9
