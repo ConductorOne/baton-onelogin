@@ -107,11 +107,17 @@ func NewConnector(ctx context.Context, clientId, clientSecret, subdomain string,
 // New returns the OneLogin connector configured to sync against the instance URL.
 func New(ctx context.Context, config *cfg.Onelogin, opts *cli.ConnectorOpts) (connectorbuilder.ConnectorBuilderV2, []connectorbuilder.Opt, error) {
 	l := ctxzap.Extract(ctx)
+
+	subdomain, err := sanitizeDomainInput(config.Subdomain)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error sanitizing subdomain input: %w", err)
+	}
+
 	cb, err := NewConnector(
 		ctx,
 		config.OneloginClientId,
 		config.OneloginClientSecret,
-		config.Subdomain,
+		subdomain,
 		config.PrivilegesEnabled,
 	)
 	if err != nil {
