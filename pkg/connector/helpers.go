@@ -135,7 +135,7 @@ func sanitizeDomainInput(domain string) (string, error) {
 		normalizedHost = net.JoinHostPort(normalizedHost, port)
 	}
 
-	subdomain := strings.TrimSuffix(host, ".onelogin.com")
+	subdomain := strings.TrimSuffix(normalizedHost, ".onelogin.com")
 
 	return subdomain, nil
 }
