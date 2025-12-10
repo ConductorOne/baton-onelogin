@@ -92,7 +92,6 @@
       "displayName": "One Login Subdomain",
       "description": "OneLogin subdomain to connect to",
       "isRequired": true,
-      "isSecret": true,
       "stringField": {
         "rules": {
           "isRequired": true
