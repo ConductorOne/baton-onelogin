@@ -12,6 +12,8 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -110,7 +112,7 @@ func New(ctx context.Context, config *cfg.Onelogin, opts *cli.ConnectorOpts) (co
 
 	subdomain, err := sanitizeDomainInput(config.Subdomain)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error sanitizing subdomain input: %w", err)
+		return nil, nil, status.Errorf(codes.InvalidArgument, "error sanitizing subdomain input: %w", err)
 	}
 
 	cb, err := NewConnector(
