@@ -24,7 +24,6 @@ var OneLoginSubDomain = field.StringField(
 	field.WithDisplayName("One Login Subdomain"),
 	field.WithDescription("OneLogin subdomain to connect to"),
 	field.WithRequired(true),
-	field.WithIsSecret(true),
 )
 
 var OneLoginEnablePrivileges = field.BoolField(

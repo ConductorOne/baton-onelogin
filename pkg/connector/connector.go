@@ -12,6 +12,8 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -107,11 +109,17 @@ func NewConnector(ctx context.Context, clientId, clientSecret, subdomain string,
 // New returns the OneLogin connector configured to sync against the instance URL.
 func New(ctx context.Context, config *cfg.Onelogin, opts *cli.ConnectorOpts) (connectorbuilder.ConnectorBuilderV2, []connectorbuilder.Opt, error) {
 	l := ctxzap.Extract(ctx)
+
+	subdomain, err := sanitizeDomainInput(config.Subdomain)
+	if err != nil {
+		return nil, nil, status.Errorf(codes.InvalidArgument, "error sanitizing subdomain input: %v", err)
+	}
+
 	cb, err := NewConnector(
 		ctx,
 		config.OneloginClientId,
 		config.OneloginClientSecret,
-		config.Subdomain,
+		subdomain,
 		config.PrivilegesEnabled,
 	)
 	if err != nil {
