@@ -112,7 +112,7 @@ func New(ctx context.Context, config *cfg.Onelogin, opts *cli.ConnectorOpts) (co
 
 	subdomain, err := sanitizeDomainInput(config.Subdomain)
 	if err != nil {
-		return nil, nil, status.Errorf(codes.InvalidArgument, "error sanitizing subdomain input: %w", err)
+		return nil, nil, status.Errorf(codes.InvalidArgument, "error sanitizing subdomain input: %v", err)
 	}
 
 	cb, err := NewConnector(
