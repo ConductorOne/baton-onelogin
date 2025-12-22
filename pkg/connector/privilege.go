@@ -67,7 +67,7 @@ func (g *privilegeResourceType) List(ctx context.Context, _ *v2.ResourceId, attr
 		ur, err := privilegeResource(&privilege)
 
 		if err != nil {
-			return nil, nil, fmt.Errorf("onelogin-connector: failed to create resource for privilege %d: %w", privilege.Id, err)
+			return nil, nil, fmt.Errorf("onelogin-connector: failed to create resource for privilege %s: %w", privilege.Id, err)
 		}
 
 		rv = append(rv, ur)
