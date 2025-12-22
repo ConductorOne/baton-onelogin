@@ -57,7 +57,7 @@ type Privilege struct {
 }
 
 type AccountPrivilege struct {
-	BaseResource
+	Id          string    `json:"id"`
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
 	Privilege   Privilege `json:"privilege"`
