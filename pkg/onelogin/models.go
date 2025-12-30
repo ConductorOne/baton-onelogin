@@ -73,10 +73,10 @@ type PrivilegeAssigmentRolesResponse struct {
 }
 
 type PrivilegeAssigmentUsersResponse struct {
-	Total        int      `json:"total"`
-	Users        []string `json:"users"`
-	BeforeCursor string   `json:"beforeCursor"`
-	PreviousLink string   `json:"previousLink"`
-	AfterCursor  string   `json:"afterCursor"`
-	NextLink     string   `json:"nextLink"`
+	Total        int    `json:"total"`
+	Users        []int  `json:"users"`
+	BeforeCursor string `json:"beforeCursor"`
+	PreviousLink string `json:"previousLink"`
+	AfterCursor  string `json:"afterCursor"`
+	NextLink     string `json:"nextLink"`
 }

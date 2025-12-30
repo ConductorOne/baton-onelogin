@@ -3,6 +3,7 @@ package connector
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
 
@@ -210,7 +211,7 @@ func (g *privilegeResourceType) Grants(ctx context.Context, resource *v2.Resourc
 					"assign",
 					&v2.ResourceId{
 						ResourceType: resourceTypeUser.Id,
-						Resource:     user,
+						Resource:     strconv.Itoa(user),
 					},
 				),
 			)
