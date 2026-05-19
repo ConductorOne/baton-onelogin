@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
 
@@ -23,19 +24,40 @@ func (g *privilegeResourceType) ResourceType(_ context.Context) *v2.ResourceType
 	return g.resourceType
 }
 
-// Create a new connector resource for an OneLogin Group.
 func privilegeResource(accountPrivilege *onelogin.AccountPrivilege) (*v2.Resource, error) {
+	var opts []rs.ResourceOption
+
+	if desc := privilegeDescription(accountPrivilege); desc != "" {
+		opts = append(opts, rs.WithDescription(desc))
+	}
+
 	resource, err := rs.NewResource(
 		accountPrivilege.Name,
 		resourceTypePrivilege,
 		accountPrivilege.Id,
+		opts...,
 	)
-
 	if err != nil {
 		return nil, err
 	}
 
 	return resource, nil
+}
+
+func privilegeDescription(ap *onelogin.AccountPrivilege) string {
+	parts := []string{}
+	if ap.Description != "" {
+		parts = append(parts, ap.Description)
+	}
+	for _, stmt := range ap.Privilege.Statement {
+		scopeStr := strings.Join(stmt.Scope, ", ")
+		if scopeStr == "" {
+			continue
+		}
+		actionsStr := strings.Join(stmt.Action, ", ")
+		parts = append(parts, fmt.Sprintf("Scope: [%s] Actions: [%s]", scopeStr, actionsStr))
+	}
+	return strings.Join(parts, "; ")
 }
 
 func (g *privilegeResourceType) List(ctx context.Context, _ *v2.ResourceId, attr rs.SyncOpAttrs) ([]*v2.Resource, *rs.SyncOpResults, error) {
@@ -137,7 +159,16 @@ func (g *privilegeResourceType) Grants(ctx context.Context, resource *v2.Resourc
 					Resource:     action,
 				}
 
-				newGrant := grant.NewGrant(resource, "has", rsPrivilege)
+				var grantOpts []grant.GrantOption
+				if len(statement.Scope) > 0 {
+					metadata := map[string]interface{}{
+						"scope":  strings.Join(statement.Scope, ", "),
+						"effect": statement.Effect,
+					}
+					grantOpts = append(grantOpts, grant.WithGrantMetadata(metadata))
+				}
+
+				newGrant := grant.NewGrant(resource, "has", rsPrivilege, grantOpts...)
 				grants = append(grants, newGrant)
 			}
 		}

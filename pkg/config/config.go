@@ -30,7 +30,7 @@ var OneLoginEnablePrivileges = field.BoolField(
 	"privileges-enabled",
 	field.WithDisplayName("Enable Privileges sync"),
 	field.WithDescription("Enable syncing of privileges from OneLogin. Requires OneLogin subscription to have access to privileges."),
-	field.WithDefaultValue(false),
+	field.WithDefaultValue(true),
 )
 
 //go:generate go run ./gen
