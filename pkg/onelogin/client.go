@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
@@ -311,6 +312,33 @@ func (c *Client) RevokeRole(ctx context.Context, roleId, userId, entitlement str
 	)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (c *Client) SyncUserMappings(ctx context.Context, userID string) error {
+	var updateResponse User
+
+	payload, err := json.Marshal(UserUpdatePayload{
+		CustomAttributes: map[string]interface{}{
+			"c1_last_action": time.Now().Unix(),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("onelogin-connector: failed to marshal sync mappings payload for user %s: %w", userID, err)
+	}
+
+	_, err = c.doRequest(
+		ctx,
+		fmt.Sprintf(UserBaseUrl, c.subdomain, userID),
+		http.MethodPut,
+		&updateResponse,
+		payload,
+		&MappingsSyncParam{},
+	)
+	if err != nil {
+		return fmt.Errorf("onelogin-connector: failed to sync mappings for user %s: %w", userID, err)
 	}
 
 	return nil
