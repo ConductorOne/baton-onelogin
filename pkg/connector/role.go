@@ -308,6 +308,13 @@ func (r *roleResourceType) Grant(ctx context.Context, principal *v2.Resource, en
 		return nil, fmt.Errorf("onelogin-connector: failed to grant %s role: %w", entitlement.Slug, err)
 	}
 
+	if err := r.client.SyncUserMappings(ctx, principal.Id.Resource); err != nil {
+		l.Warn("onelogin-connector: failed to sync user mappings after role grant",
+			zap.String("user_id", principal.Id.Resource),
+			zap.Error(err),
+		)
+	}
+
 	return nil, nil
 }
 
@@ -332,6 +339,13 @@ func (r *roleResourceType) Revoke(ctx context.Context, grant *v2.Grant) (annotat
 	err := r.client.RevokeRole(ctx, entitlement.Resource.Id.Resource, principal.Id.Resource, entitlement.Slug)
 	if err != nil {
 		return nil, fmt.Errorf("onelogin-connector failed to revoke %s role: %w", entitlement.Slug, err)
+	}
+
+	if err := r.client.SyncUserMappings(ctx, principal.Id.Resource); err != nil {
+		l.Warn("onelogin-connector: failed to sync user mappings after role revoke",
+			zap.String("user_id", principal.Id.Resource),
+			zap.Error(err),
+		)
 	}
 
 	return nil, nil
