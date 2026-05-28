@@ -36,7 +36,7 @@ var OneLoginEnablePrivileges = field.BoolField(
 var ApplyUserMappings = field.BoolField(
 	"apply-user-mappings",
 	field.WithDisplayName("Apply User Mappings"),
-	field.WithDescription("If true, will run OneLogin user mappings immediately upon a role grant/revoke request"),
+	field.WithDescription("If true, will run OneLogin user mappings immediately upon a role grant/revoke request. Requires a custom user field in OneLogin called c1_last_action."),
 	field.WithDefaultValue(false),
 )
 
