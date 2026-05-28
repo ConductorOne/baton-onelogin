@@ -57,14 +57,15 @@ var (
 )
 
 type OneLogin struct {
-	client         *onelogin.Client
-	syncPrivileges bool
+	client            *onelogin.Client
+	syncPrivileges    bool
+	applyUserMappings bool
 }
 
 func (o *OneLogin) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncerV2 {
 	resources := []connectorbuilder.ResourceSyncerV2{
 		userBuilder(o.client),
-		roleBuilder(o.client),
+		roleBuilder(o.client, o.applyUserMappings),
 		appBuilder(o.client),
 		groupBuilder(o.client),
 	}
@@ -94,15 +95,16 @@ func (o *OneLogin) Validate(ctx context.Context) (annotations.Annotations, error
 }
 
 // New returns the OneLogin connector.
-func NewConnector(ctx context.Context, clientId, clientSecret, subdomain string, syncPrivileges bool) (*OneLogin, error) {
+func NewConnector(ctx context.Context, clientId, clientSecret, subdomain string, syncPrivileges bool, applyUserMappings bool) (*OneLogin, error) {
 	oneLoginClient, err := onelogin.NewClient(ctx, clientId, clientSecret, subdomain)
 	if err != nil {
 		return nil, fmt.Errorf("onelogin-connector: failed to initialize OneLogin client: %w", err)
 	}
 
 	return &OneLogin{
-		client:         oneLoginClient,
-		syncPrivileges: syncPrivileges,
+		client:            oneLoginClient,
+		syncPrivileges:    syncPrivileges,
+		applyUserMappings: applyUserMappings,
 	}, nil
 }
 
@@ -121,6 +123,7 @@ func New(ctx context.Context, config *cfg.Onelogin, opts *cli.ConnectorOpts) (co
 		config.OneloginClientSecret,
 		subdomain,
 		config.PrivilegesEnabled,
+		config.ApplyUserMappings,
 	)
 	if err != nil {
 		l.Error("error creating connector", zap.Error(err))
