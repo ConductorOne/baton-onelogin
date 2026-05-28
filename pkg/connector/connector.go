@@ -54,11 +54,18 @@ var (
 		Id:          "privilege",
 		DisplayName: "Privilege",
 	}
+	resourceTypeSystemPrivilege = &v2.ResourceType{
+		Id:          "system_privilege",
+		DisplayName: "System Privilege",
+		Annotations: annotations.New(
+			&v2.SkipEntitlements{},
+		),
+	}
 )
 
 type OneLogin struct {
 	client            *onelogin.Client
-	syncPrivileges    bool
+	SyncPrivileges    bool
 	applyUserMappings bool
 }
 
@@ -68,9 +75,10 @@ func (o *OneLogin) ResourceSyncers(ctx context.Context) []connectorbuilder.Resou
 		roleBuilder(o.client, o.applyUserMappings),
 		appBuilder(o.client),
 		groupBuilder(o.client),
+		systemPrivilegeBuilder(o.client),
 	}
 
-	if o.syncPrivileges {
+	if o.SyncPrivileges {
 		resources = append(resources, privilegeActionBuilder(o.client), privilegeBuilder(o.client))
 	}
 
@@ -103,7 +111,7 @@ func NewConnector(ctx context.Context, clientId, clientSecret, subdomain string,
 
 	return &OneLogin{
 		client:            oneLoginClient,
-		syncPrivileges:    syncPrivileges,
+		SyncPrivileges:    syncPrivileges,
 		applyUserMappings: applyUserMappings,
 	}, nil
 }

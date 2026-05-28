@@ -63,6 +63,11 @@ type AccountPrivilege struct {
 	Privilege   Privilege `json:"privilege"`
 }
 
+type UserSystemPrivilegeAssignment struct {
+	ID   int    `json:"id"` // this is the assigment ID not the privilege ID
+	Name string `json:"name"`
+}
+
 type PrivilegeAssigmentRolesResponse struct {
 	Total        int      `json:"total"`
 	Roles        []string `json:"roles"`
