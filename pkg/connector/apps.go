@@ -37,6 +37,7 @@ func appResource(app *onelogin.App) (*v2.Resource, error) {
 		resourceTypeApp,
 		app.Id,
 		appTraitOptions,
+		rs.WithNHIType(v2.NonHumanIdentityTrait_NHI_TYPE_APP_REGISTRATION, "onelogin.app"),
 	)
 
 	if err != nil {
