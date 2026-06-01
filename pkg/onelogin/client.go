@@ -37,6 +37,8 @@ const (
 	GetPrivilegeByIdBaseURL            = PrivilegesBaseURL + "/%s"
 	GetPrivilegeAssignableRolesBaseUrl = PrivilegesBaseURL + "/%s/roles"
 	GetPrivilegeAssignableUsersBaseUrl = PrivilegesBaseURL + "/%s/users"
+
+	c1LastActionAttr = "c1_last_action"
 )
 
 type Client struct {
@@ -322,7 +324,7 @@ func (c *Client) SyncUserMappings(ctx context.Context, userID string) error {
 
 	payload, err := json.Marshal(UserUpdatePayload{
 		CustomAttributes: map[string]interface{}{
-			"c1_last_action": time.Now().Unix(),
+			c1LastActionAttr: time.Now().Unix(),
 		},
 	})
 	if err != nil {
