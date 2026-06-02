@@ -43,6 +43,7 @@ baton resources
 - Groups
 - Apps
 - Roles
+- System Privileges
 
 # Contributing, Support, and Issues
 
