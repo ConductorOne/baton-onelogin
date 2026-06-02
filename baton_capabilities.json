@@ -64,7 +64,12 @@
     {
       "resourceType": {
         "id": "system_privilege",
-        "displayName": "System Privilege"
+        "displayName": "System Privilege",
+        "annotations": [
+          {
+            "@type": "type.googleapis.com/c1.connector.v2.SkipEntitlements"
+          }
+        ]
       },
       "capabilities": [
         "CAPABILITY_SYNC"
