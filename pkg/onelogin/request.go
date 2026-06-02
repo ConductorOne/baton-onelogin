@@ -80,3 +80,15 @@ func NewCredentialsGrant() *GrantBody {
 		GrantType: "client_credentials",
 	}
 }
+
+// MappingsSyncParam instructs OneLogin to reapply user mappings synchronously.
+type MappingsSyncParam struct{}
+
+func (m *MappingsSyncParam) setup(params *url.Values) {
+	params.Set("mappings", "sync")
+}
+
+// UserUpdatePayload is the request body for PUT /api/2/users/{id}.
+type UserUpdatePayload struct {
+	CustomAttributes map[string]interface{} `json:"custom_attributes"`
+}

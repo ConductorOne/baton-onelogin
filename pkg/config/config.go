@@ -33,6 +33,13 @@ var OneLoginEnablePrivileges = field.BoolField(
 	field.WithDefaultValue(false),
 )
 
+var ApplyUserMappings = field.BoolField(
+	"apply-user-mappings",
+	field.WithDisplayName("Apply User Mappings"),
+	field.WithDescription("If true, will run OneLogin user mappings immediately upon a role grant/revoke request. Requires a custom user field in OneLogin called c1_last_action."),
+	field.WithDefaultValue(false),
+)
+
 //go:generate go run ./gen
 var Config = field.NewConfiguration(
 	[]field.SchemaField{
@@ -40,6 +47,7 @@ var Config = field.NewConfiguration(
 		OneLoginClientSecret,
 		OneLoginSubDomain,
 		OneLoginEnablePrivileges,
+		ApplyUserMappings,
 	},
 	field.WithConnectorDisplayName("OneLogin"),
 	field.WithHelpUrl("/docs/baton/onelogin-v2"),
