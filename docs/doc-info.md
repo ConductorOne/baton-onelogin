@@ -11,7 +11,8 @@ While developing the connector, please fill out this form. This information is n
    — Accounts  
    — Roles  
    — Groups  
-   — Application assignments
+   — Application assignments  
+   — System Privileges (built-in admin privileges such as Super user, Manage users, Help desk, etc.)
 
 2. **Can the connector provision any resources? If so, which ones?**  
    The connector can provision:  

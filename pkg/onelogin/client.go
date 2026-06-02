@@ -38,6 +38,8 @@ const (
 	GetPrivilegeAssignableRolesBaseUrl = PrivilegesBaseURL + "/%s/roles"
 	GetPrivilegeAssignableUsersBaseUrl = PrivilegesBaseURL + "/%s/users"
 
+	UserPrivilegesBaseURL = UserBaseUrl + "/privileges"
+
 	c1LastActionAttr = "c1_last_action"
 )
 
@@ -109,6 +111,23 @@ func (c *Client) GetUserByID(ctx context.Context, userID int) (*User, error) {
 	}
 
 	return userResponse, nil
+}
+
+func (c *Client) GetUserSystemPrivileges(ctx context.Context, userID string) ([]UserSystemPrivilegeAssignment, error) {
+	var response []UserSystemPrivilegeAssignment
+
+	_, err := c.doRequest(
+		ctx,
+		fmt.Sprintf(UserPrivilegesBaseURL, c.subdomain, userID),
+		http.MethodGet,
+		&response,
+		nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return response, nil
 }
 
 func (c *Client) GetApps(ctx context.Context, paginationVars PaginationVars) ([]App, string, error) {
