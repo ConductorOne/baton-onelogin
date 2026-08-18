@@ -24,24 +24,33 @@ func (u *userResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return u.resourceType
 }
 
-// buildUserProfile constructs a display name and profile from user details.
-func buildUserProfile(displayName, email, firstName, lastName string, managerId *int, managerEmail string, id int) (map[string]interface{}, []rs.UserTraitOption) {
+// buildUserProfile constructs the user trait profile and options from user details.
+func buildUserProfile(displayName string, user *onelogin.User) (map[string]interface{}, []rs.UserTraitOption) {
 	profile := map[string]interface{}{
 		"login":      displayName,
-		"user_id":    fmt.Sprintf("%d", id),
-		"first_name": firstName,
-		"last_name":  lastName,
+		"user_id":    fmt.Sprintf("%d", user.Id),
+		"first_name": user.Firstname,
+		"last_name":  user.Lastname,
 	}
 
-	if managerId != nil {
-		profile["manager_user_id"] = fmt.Sprintf("%d", *managerId)
+	// Job title and department are optional in OneLogin; only include them when populated
+	// so downstream policies and automations don't have to special-case empty strings.
+	if jobTitle := strings.TrimSpace(user.Title); jobTitle != "" {
+		profile["job_title"] = jobTitle
 	}
-	if managerEmail != "" {
-		profile["manager_email"] = managerEmail
+	if department := strings.TrimSpace(user.Department); department != "" {
+		profile["department"] = department
+	}
+
+	if user.ManagerId != nil {
+		profile["manager_user_id"] = fmt.Sprintf("%d", *user.ManagerId)
+	}
+	if user.ManagerEmail != "" {
+		profile["manager_email"] = user.ManagerEmail
 	}
 
 	options := []rs.UserTraitOption{
-		rs.WithEmail(email, true),
+		rs.WithEmail(user.Email, true),
 		rs.WithUserProfile(profile),
 	}
 	return profile, options
@@ -51,15 +60,7 @@ func buildUserProfile(displayName, email, firstName, lastName string, managerId 
 func parseIntoUserResource(user *onelogin.User) (*v2.Resource, error) {
 	displayName := resolveDisplayName(user)
 
-	_, options := buildUserProfile(
-		displayName,
-		user.Email,
-		user.Firstname,
-		user.Lastname,
-		user.ManagerId,
-		user.ManagerEmail,
-		user.Id,
-	)
+	_, options := buildUserProfile(displayName, user)
 
 	switch user.Status {
 	case 0:
