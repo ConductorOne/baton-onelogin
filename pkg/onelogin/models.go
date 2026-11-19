@@ -11,6 +11,8 @@ type User struct {
 	Firstname    string `json:"firstname"`
 	Lastname     string `json:"lastname"`
 	Status       int    `json:"status"`
+	Title        string `json:"title"`
+	Department   string `json:"department"`
 	ManagerId    *int   `json:"manager_user_id,omitempty"`
 	ManagerEmail string
 }

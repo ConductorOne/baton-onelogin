@@ -40,7 +40,7 @@ func (pV *PaginationVars) setup(params *url.Values) {
 
 // Filtering variables and types.
 var (
-	UserFields = []string{"id", "email", "username", "firstname", "lastname", "status", "group_id"}
+	UserFields = []string{"id", "email", "username", "firstname", "lastname", "status", "group_id", "title", "department"}
 )
 
 type FilterVars struct {
